@@ -17,6 +17,7 @@ narwhals==2.25.0
 numpy==2.5.2
 packaging==26.3
 pandas==3.0.5
+plotly==5.18.0
 pillow==12.3.0
 protobuf==7.36.1
 pyarrow==25.0.1
@@ -26,6 +27,7 @@ python-multipart==0.0.32
 referencing==0.37.0
 requests==2.34.2
 rpds-py==2026.6.3
+supabase==2.0.0
 six==1.17.0
 starlette==1.6.0
 streamlit==1.62.0
