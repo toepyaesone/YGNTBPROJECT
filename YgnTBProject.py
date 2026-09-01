@@ -26,15 +26,13 @@ st.title("📊 YGN TB Program - Supabase Data Viewer")
 if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
 
-target_function_name = "functionGetDataFromTable"
-table_name = "ygntbpro"
+# target_function_name = "functionGetDataFromTable"
+# table_name = "ygntbpro"
 
 with st.spinner("Connecting to Supabase and retrieving dataset..."):
     try:
         # Calling the function by name dynamically
-        df_ygntbpro_supabase = call_function_by_name(
-            target_function_name, tableName=table_name
-        )
+        df_ygntbpro_supabase = call_function_by_name("functionGetDataFromTable", "ygntbpro")
     except Exception as err:
         st.error(f"❌ Error during execution: {err}")
         df_ygntbpro_supabase = None
