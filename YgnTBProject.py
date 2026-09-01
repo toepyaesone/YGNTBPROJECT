@@ -1484,7 +1484,7 @@ st.set_page_config(page_title="Yangon TB Project Dashboard", layout="wide")
 
 
 # --- STREAMLIT UI ---
-st.title("📊 YGN TB Program - Supabase Data Viewer")
+# st.title("📊 YGN TB Program - Supabase Data Viewer")
 
 if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
