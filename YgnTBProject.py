@@ -213,6 +213,33 @@ if df_target_supabase is not None and not df_target_supabase.empty:
             filtered_df = filtered_df[filtered_df[col].astype(str).isin(selected_vals)]
 
     ########################################
+
+        achievement = function_indicator_achievement(filtered_df,CRITERIA_INDICATORS)
+        progress = function_merge_target(achievement,target_df,indicators=tuple(CRITERIA_INDICATORS.keys()))
+
+        total_attendant = len(filtered_df)
+
+
+        presumptive_count = achievement['Examined Cases'].sum()
+        notified_count = achievement['Notified Cases'].sum()
+        bact_confirmed_count = achievement['BC Cases'].sum()
+
+        presumptive_sum_target = progress['Examined Cases Target'].sum()
+        notified_sum_target = progress['Notified Cases Target'].sum()
+        bact_confirmed_sum_target = progress['BC Cases Target'].sum()
+
+        if date_to.value or date_to.value:
+            filtered_progress = progress[progress['ReportingDate'].dt.date.between(date_from.value,date_to.value)]
+        
+        presumptive_count_target = filtered_progress['Examined Cases Target'].sum()
+        notified_count_target = filtered_progress['Notified Cases Target'].sum()
+        bact_confirmed_count_target = filtered_progress['BC Cases Target'].sum() 
+
+        presumptive_sub = f"{presumptive_count / presumptive_count_target * 100:.0f}% progress  on {presumptive_count_target:.0f} Targeted <br> ({presumptive_sum_target:.0f} in Total)"
+        notified_sub = f"{notified_count / notified_count_target * 100:.0f}% progress on {notified_count_target:.0f} Targeted <br> ({notified_sum_target:.0f} in Total)"
+        bact_confirmed_sub = f"{bact_confirmed_count / bact_confirmed_count_target * 100:.0f}% progress on {bact_confirmed_count_target:.0f} Targeted <br> ({bact_confirmed_sum_target:.0f} in Total)"
+
+    
     fig_target_achievement = fn.plotly_achievement_target_dropdown(dataframe = progress,
                 achievement_columnList = ["Examined Cases Achievement", "Notified Cases Achievement", "BC Cases Achievement"],
                 target_columnList = ["Examined Cases Target","Notified Cases Target","BC Cases Target"],
