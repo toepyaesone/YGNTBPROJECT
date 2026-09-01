@@ -17,61 +17,24 @@ CATEGORICAL_COLS = [
     'TypeofTBTreatment', 'TargetCategory'
 ]
 
-COLUMN_UNCODE = ['Team','Sex','VOL','Referralfor','Cough','Fever','Wtloss','Nightsweat','Haemoptysis','Chestpain','Fatigue','Neckglands',
-              'TBcontact','MDRTBcontact','TBTreatmenthistory','Smoking','Reasonforexamination','TypeofPatient','PublicHealthCare1',
-              'TypeofPatient1','DM1','HT1','DMHT1','RTIAVI1','Generalweakness1','Other1','Cxrr','CXRresult','Sputum_request','Micror',
-              'Sputummicroscopyresult','Genexpertrequested','GeneXpertresult','Bact_status','Case','Treatmentreferral','TreatmentRegimen',
-              'Placeforreferral','TreatmentOutcome1211','ContactInvestigation111','DOTSupervision111','DOTsupervisiontillTreatmentComp111',
-              'Seeing1','Hearing1','Walking1','Cognition1','Selfcare1','Communication1','Disability1','Xray2ndReading11','CXRresult211',
-              'TypeofTBTreatment']
+COLUMN_UNCODE = [
+    'Team','Sex','VOL','Referralfor','Cough','Fever','Wtloss','Nightsweat','Haemoptysis','Chestpain','Fatigue','Neckglands',
+    'TBcontact','MDRTBcontact','TBTreatmenthistory','Smoking','Reasonforexamination','TypeofPatient','PublicHealthCare1',
+    'TypeofPatient1','DM1','HT1','DMHT1','RTIAVI1','Generalweakness1','Other1','Cxrr','CXRresult','Sputum_request','Micror',
+    'Sputummicroscopyresult','Genexpertrequested','GeneXpertresult','Bact_status','Case','Treatmentreferral','TreatmentRegimen',
+    'Placeforreferral','TreatmentOutcome1211','ContactInvestigation111','DOTSupervision111','DOTsupervisiontillTreatmentComp111',
+    'Seeing1','Hearing1','Walking1','Cognition1','Selfcare1','Communication1','Disability1','Xray2ndReading11','CXRresult211',
+    'TypeofTBTreatment'
+]
 
-COLUMN_DISABILITY = ["Seeing1","Hearing1","Walking1","Cognition1","Selfcare1","Communication1"]
-
-COLUMN_SYMPTOM = ['Cough','Fever','Wtloss','Nightsweat','Haemoptysis','Chestpain','Fatigue','Neckglands']
-
-COLUMN_PRESERVED_FOR_TARGET = ["ReportingDate","Team","Tsp","TargetCategory","Group"]
-
-UNCODE_DISABILITY = {"1": "No - No Difficulty","2": "Yes - Some Difficulty","3": "Yes - A lot of Difficulty","4": "Yes - Can not do it at all"}
+COLUMN_PRESERVED_FOR_TARGET = ["ReportingDate", "Team", "Tsp", "TargetCategory", "Group"]
 
 UNCODE_MAPPING = {
-    "CXRresult": {
-        "1": "Normal",
-        "2": "TB Active",
-        "3": "TB Suspect",
-        "4": "TB Healed",
-        "5": "Other Abnormal",
-    },
-    "CXRresult211": {
-        "1": "Normal",
-        "2": "TB Active",
-        "3": "TB Suspect",
-        "4": "TB Healed",
-        "5": "Other Abnormal",
-    },
-    "GeneXpertresult": {
-        "0": "N",
-        "1": "I",
-        "2": "T",
-        "3": "RR",
-        "4": "TI",
-        "5": "Denied",
-        "6": "Missing",
-        "7": "TT",
-    },
-    "Placeforreferral": {
-        "1": "NTP",
-        "2": "MMA",
-        "3": "PSI",
-        "4": "MATA",
-        "5": "Other",
-    },
-    "TreatmentRegimen": {
-        "1": "IR",
-        "2": "RR",
-        "3": "CR",
-        "4": "MDR",
-        "5": "MR",
-    },
+    "CXRresult": {"1": "Normal", "2": "TB Active", "3": "TB Suspect", "4": "TB Healed", "5": "Other Abnormal"},
+    "CXRresult211": {"1": "Normal", "2": "TB Active", "3": "TB Suspect", "4": "TB Healed", "5": "Other Abnormal"},
+    "GeneXpertresult": {"0": "N", "1": "I", "2": "T", "3": "RR", "4": "TI", "5": "Denied", "6": "Missing", "7": "TT"},
+    "Placeforreferral": {"1": "NTP", "2": "MMA", "3": "PSI", "4": "MATA", "5": "Other"},
+    "TreatmentRegimen": {"1": "IR", "2": "RR", "3": "CR", "4": "MDR", "5": "MR"},
     "TypeofTBTreatment": {"1": "DS-TB", "2": "DR-TB", "3": "TPT"},
     "Sex": {"1": "Male", "2": "Female"},
     "Cxrr": {"1": "Requested", "2": "Not Requested"},
@@ -82,36 +45,30 @@ UNCODE_MAPPING = {
     "DM1": {"1": "DM-New", "2": "No DM", "3": "DM-Old"},
     "HT1": {"1": "HT-New", "2": "No DM", "3": "HT-Old"},
     "HIVStatus": {"N": "Negative", "P": "Positive", "U": "Unknown"},
-    "Genexpertrequested":{"1":"Requested","2":"Not Requested"},
-    "Bact_status": {"1": "BC","2": "CD"},
+    "Genexpertrequested": {"1": "Requested", "2": "Not Requested"},
+    "Bact_status": {"1": "BC", "2": "CD"},
     "Treatmentreferral": {"1": "Registered", "2": "Not Registered"},
-    "TypeofPatient1":{"1":"New","2":"Old"},
-    "Team":{"1":"MMA", "5":"MATA"}}
+    "TypeofPatient1": {"1": "New", "2": "Old"},
+    "Team": {"1": "MMA", "5": "MATA"}
+}
 
-UNCODE_DEFAULT = {"1": "Yes", "2": "No"}
+CRITERIA_INDICATORS = {
+    "Examined Cases": {"Reasonforexamination": "Diagnosis"},
+    "Notified Cases": {"Reasonforexamination": "Diagnosis", "Case": "TB"},
+    "BC Cases": {"Reasonforexamination": "Diagnosis", "Case": "TB", "Bact_status": "BC"}
+}
 
-MISSING_STRINGS = {"","none","nan","null","n/a","na","<na>","nat","#n/a","-","None","NONE","NaN","NULL","<NA>","N/A","NaT"}
-
-CRITERIA_INDICATORS = {"Examined Cases": {"Reasonforexamination": "Diagnosis"},
-                       "Notified Cases": {"Reasonforexamination": "Diagnosis", "Case": "TB"},
-                       "BC Cases": {"Reasonforexamination": "Diagnosis","Case": "TB","Bact_status": "BC"}}
-
-CATEGORY_PHC_CRITERIA = {"DM1": {"DM-New": "DM","DM-Old": "DM"},
-                         "HT1": {"HT-New": "HT","HT-Old": "HT"},
-                         'RTIAVI1':{"Yes":"AVI"}, 
-                         'Generalweakness1':{"Yes":"General Weakness"},
-                         'Other1':{"Yes":"Others"}}
-
-COLUMN_CI_DOTS = ['Case','Bact_status','Treatmentreferral','TypeofTBTreatment','Age',
-                  'HIVStatus','ContactInvestigation111', 'DOTSupervision111', 
-                  'DOTStartedDate111','DOTsupervisiontillTreatmentComp111',
-                  'Tsp','Ptstsp','VOL','Referralfor','VolunteerName','Organization',
-                  'TreatmentOutcome1211','Tx_Outcome_Date','DOTvolName111',
-                  'VolunteerGender111','VolunteerOrganization111']
+CATEGORY_PHC_CRITERIA = {
+    "DM1": {"DM-New": "DM", "DM-Old": "DM"},
+    "HT1": {"HT-New": "HT", "HT-Old": "HT"},
+    'RTIAVI1': {"Yes": "AVI"},
+    'Generalweakness1': {"Yes": "General Weakness"},
+    'Other1': {"Yes": "Others"}
+}
 
 MAPPING_TARGET_CATEGORY = {"PPM": ["PPM", "Diagnostic Center"], "Mobile": ["Mobile Visit", "Elderly Care", "Touring"]}
 
-# OPTIMIZATION 1: Fetch AND pre-process data inside st.cache_data
+
 @st.cache_data(ttl=600, show_spinner=False)
 def load_and_preprocess_data():
     df_raw_tb = fn.functionGetDataFromTable("ygntbpro", SUPABASE_URL, SUPABASE_KEY)
@@ -125,6 +82,9 @@ def load_and_preprocess_data():
     df_target = fn.function_uncode(df=df_target, colName=["Team"], mapping=UNCODE_MAPPING)
     df_target = fn.function_reporting_period(df_target, date_col="ReportingDate")
     df_target.rename(columns={"Group": "Clinic"}, inplace=True)
+    
+    if "ReportingDate" in df_target.columns:
+        df_target["ReportingDate"] = pd.to_datetime(df_target["ReportingDate"], errors="coerce")
 
     # Process dashboard dataframe
     df_dashboard = fn.create_category(df_raw_tb, source_col="Approach", criteria_mapping=MAPPING_TARGET_CATEGORY, output_col="TargetCategory", default="")
@@ -133,11 +93,11 @@ def load_and_preprocess_data():
     df_dashboard = fn.function_reporting_period(df_dashboard)
     df_dashboard = fn.create_category_combined(df_dashboard, CATEGORY_PHC_CRITERIA, "PrimaryHealthcare")
 
-    # Fast datetime parsing
     if "Date" in df_dashboard.columns:
         df_dashboard["Date"] = pd.to_datetime(df_dashboard["Date"], errors="coerce")
     
     return df_dashboard, df_target
+
 
 # Fetch processed data
 with st.spinner("Connecting to Supabase and preparing dataset..."):
@@ -150,7 +110,7 @@ with st.spinner("Connecting to Supabase and preparing dataset..."):
 if df_dashboard is not None and not df_dashboard.empty:
     st.sidebar.header("🔍 Filter Options")
 
-    # Compute date limits efficiently
+    # Compute date limits
     if "Date" in df_dashboard.columns and df_dashboard["Date"].notna().any():
         min_date = df_dashboard["Date"].min().date()
         max_date = df_dashboard["Date"].max().date()
@@ -175,11 +135,12 @@ if df_dashboard is not None and not df_dashboard.empty:
         key="date_range"
     )
 
-    filtered_df = df_dashboard
+    filtered_df = df_dashboard.copy()
+    filtered_target = df_target.copy() if df_target is not None else pd.DataFrame()
 
+    start_date, end_date = min_date, max_date
     if isinstance(date_selection, (tuple, list)) and len(date_selection) == 2:
         start_date, end_date = date_selection
-        # Optimized inline filtering using query/boolean mask
         filtered_df = filtered_df[
             (filtered_df["Date"].dt.date >= start_date) & 
             (filtered_df["Date"].dt.date <= end_date)
@@ -188,7 +149,6 @@ if df_dashboard is not None and not df_dashboard.empty:
     # --- 2. SINGLE-PASS CASCADING CATEGORICAL FILTERS ---
     selected_filters = {}
     for col in active_cat_cols:
-        # Dynamically compute available options based on currently filtered subset
         available_options = sorted(filtered_df[col].dropna().astype(str).unique())
         current_selection = st.session_state.get(f"select_{col}", [])
         valid_selection = [val for val in current_selection if val in available_options]
@@ -201,36 +161,55 @@ if df_dashboard is not None and not df_dashboard.empty:
         )
 
         if selected:
+            # Dynamically filter the achievement data
             filtered_df = filtered_df[filtered_df[col].astype(str).isin(selected)]
+            
+            # DYNAMIC FIX: Synchronize Target data filtering for shared structural dimensions
+            if not filtered_target.empty and col in filtered_target.columns:
+                filtered_target = filtered_target[filtered_target[col].astype(str).isin(selected)]
 
-    # --- 3. DISPLAY PLOTLY CHARTS ---
-    # Ensure progress dataset exists before passing to visualization
-    achievement = fn.function_indicator_achievement(filtered_df,CRITERIA_INDICATORS)
-    progress = fn.function_merge_target(achievement,df_target,indicators=tuple(CRITERIA_INDICATORS.keys()))
+    # --- 3. DYNAMIC METRICS & PLOTLY CHARTS ---
+    achievement = fn.function_indicator_achievement(filtered_df, CRITERIA_INDICATORS)
+    progress = fn.function_merge_target(achievement, filtered_target, indicators=tuple(CRITERIA_INDICATORS.keys()))
 
     total_attendant = len(filtered_df)
 
+    presumptive_count = achievement['Examined Cases'].sum() if 'Examined Cases' in achievement else 0
+    notified_count = achievement['Notified Cases'].sum() if 'Notified Cases' in achievement else 0
+    bact_confirmed_count = achievement['BC Cases'].sum() if 'BC Cases' in achievement else 0
 
-    presumptive_count = achievement['Examined Cases'].sum()
-    notified_count = achievement['Notified Cases'].sum()
-    bact_confirmed_count = achievement['BC Cases'].sum()
+    presumptive_sum_target = progress['Examined Cases Target'].sum() if 'Examined Cases Target' in progress else 0
+    notified_sum_target = progress['Notified Cases Target'].sum() if 'Notified Cases Target' in progress else 0
+    bact_confirmed_sum_target = progress['BC Cases Target'].sum() if 'BC Cases Target' in progress else 0
 
-    presumptive_sum_target = progress['Examined Cases Target'].sum()
-    notified_sum_target = progress['Notified Cases Target'].sum()
-    bact_confirmed_sum_target = progress['BC Cases Target'].sum()
+    # DYNAMIC FIX: Filter target metrics strictly using the user's active date range selection
+    if not progress.empty and "ReportingDate" in progress.columns:
+        filtered_progress = progress[progress['ReportingDate'].dt.date.between(start_date, end_date)]
+    else:
+        filtered_progress = pd.DataFrame()
 
-    if date_selection:
-        filtered_progress = progress[progress['ReportingDate'].dt.date.between(min_date,max_date)]
-        
-    presumptive_count_target = filtered_progress['Examined Cases Target'].sum()
-    notified_count_target = filtered_progress['Notified Cases Target'].sum()
-    bact_confirmed_count_target = filtered_progress['BC Cases Target'].sum() 
+    presumptive_count_target = filtered_progress['Examined Cases Target'].sum() if 'Examined Cases Target' in filtered_progress else 0
+    notified_count_target = filtered_progress['Notified Cases Target'].sum() if 'Notified Cases Target' in filtered_progress else 0
+    bact_confirmed_count_target = filtered_progress['BC Cases Target'].sum() if 'BC Cases Target' in filtered_progress else 0 
 
-    presumptive_sub = f"{presumptive_count / presumptive_count_target * 100:.0f}% progress  on {presumptive_count_target:.0f} Targeted <br> ({presumptive_sum_target:.0f} in Total)"
-    notified_sub = f"{notified_count / notified_count_target * 100:.0f}% progress on {notified_count_target:.0f} Targeted <br> ({notified_sum_target:.0f} in Total)"
-    bact_confirmed_sub = f"{bact_confirmed_count / bact_confirmed_count_target * 100:.0f}% progress on {bact_confirmed_count_target:.0f} Targeted <br> ({bact_confirmed_sum_target:.0f} in Total)"
-    
-    if "progress" in locals() or "progress" in globals():
+    # Zero-division safety checks for percentage calculations
+    p_pct = (presumptive_count / presumptive_count_target * 100) if presumptive_count_target > 0 else 0
+    n_pct = (notified_count / notified_count_target * 100) if notified_count_target > 0 else 0
+    b_pct = (bact_confirmed_count / bact_confirmed_count_target * 100) if bact_confirmed_count_target > 0 else 0
+
+    presumptive_sub = f"{p_pct:.0f}% progress on {presumptive_count_target:.0f} Targeted <br> ({presumptive_sum_target:.0f} in Total)"
+    notified_sub = f"{n_pct:.0f}% progress on {notified_count_target:.0f} Targeted <br> ({notified_sum_target:.0f} in Total)"
+    bact_confirmed_sub = f"{b_pct:.0f}% progress on {bact_confirmed_count_target:.0f} Targeted <br> ({bact_confirmed_sum_target:.0f} in Total)"
+
+    # Metric Display Cards
+    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+    m_col1.metric("Total Attendants", f"{total_attendant:,}")
+    m_col2.metric("Presumptive Cases", f"{presumptive_count:,}")
+    m_col3.metric("Notified Cases", f"{notified_count:,}")
+    m_col4.metric("Bacteriologically Confirmed", f"{bact_confirmed_count:,}")
+
+    # Plotly Visualizations
+    if not progress.empty:
         fig_target_achievement = fn.plotly_achievement_target_dropdown(
             dataframe=progress,
             achievement_columnList=["Examined Cases Achievement", "Notified Cases Achievement", "BC Cases Achievement"],
@@ -263,11 +242,10 @@ if df_dashboard is not None and not df_dashboard.empty:
 
     search_term = st.text_input("🔍 Search within filtered records:")
     
-    # OPTIMIZATION 3: Fast String Search across critical columns instead of entire DataFrame
     if search_term:
         searchable_cols = [c for c in ['Team', 'Tsp', 'Clinic', 'Case', 'Bact_status'] if c in filtered_df.columns]
         if not searchable_cols:
-            searchable_cols = filtered_df.columns[:10]  # Fallback to first 10 columns
+            searchable_cols = filtered_df.columns[:10]
             
         mask = pd.Series(False, index=filtered_df.index)
         for c in searchable_cols:
@@ -278,7 +256,6 @@ if df_dashboard is not None and not df_dashboard.empty:
 
     st.dataframe(display_df, use_container_width=True)
 
-    # OPTIMIZATION 4: Deferred CSV encoding (only runs when clicked)
     @st.cache_data
     def convert_df_to_csv(df):
         return df.to_csv(index=False).encode("utf-8")
