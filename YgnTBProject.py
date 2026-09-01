@@ -10,6 +10,13 @@ SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://kocihpxevlowqbguhstf.supa
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "sb_publishable_1MWEplxpyp0YOGW_TxZiMQ_HbvtHP5Z")
 
 # Static configuration mappings
+CATEGORICAL_COLS = [
+    'Team', 'Tsp', 'Approach', 'Clinic', 'Reasonforexamination', 'Case', 
+    'Bact_status', 'Treatmentreferral', 'MonthDiagnosis11', 'Cxrr', 
+    'CXRresult', 'CXRresult211', 'Genexpertrequested', 'GeneXpertresult', 
+    'TypeofTBTreatment', 'TargetCategory'
+]
+
 COLUMN_UNCODE = ['Team','Sex','VOL','Referralfor','Cough','Fever','Wtloss','Nightsweat','Haemoptysis','Chestpain','Fatigue','Neckglands',
               'TBcontact','MDRTBcontact','TBTreatmenthistory','Smoking','Reasonforexamination','TypeofPatient','PublicHealthCare1',
               'TypeofPatient1','DM1','HT1','DMHT1','RTIAVI1','Generalweakness1','Other1','Cxrr','CXRresult','Sputum_request','Micror',
