@@ -219,8 +219,8 @@ if df_dashboard is not None and not df_dashboard.empty:
     notified_sum_target = progress['Notified Cases Target'].sum()
     bact_confirmed_sum_target = progress['BC Cases Target'].sum()
 
-    if date_to.value or date_to.value:
-        filtered_progress = progress[progress['ReportingDate'].dt.date.between(date_from.value,date_to.value)]
+    if date_selection:
+        filtered_progress = progress[progress['ReportingDate'].dt.date.between(min_date,max_date)]
         
     presumptive_count_target = filtered_progress['Examined Cases Target'].sum()
     notified_count_target = filtered_progress['Notified Cases Target'].sum()
