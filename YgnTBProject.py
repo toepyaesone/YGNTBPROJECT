@@ -186,8 +186,30 @@ else:
     max_date = pd.to_datetime("2026-12-31").date()
 
 
+# --- HELPER: UNIFIED VALUE CLEANER ---
+def clean_series(series: pd.Series) -> pd.Series:
+    """Utility to safely format values for string comparison."""
+    return series.fillna("").astype(str).str.strip()
+
+def get_options(df: pd.DataFrame, column_name: str) -> list:
+    if column_name in df.columns:
+        cleaned_values = clean_series(df[column_name])
+        unique_vals = sorted([v for v in cleaned_values.unique() if v not in ["", "nan", "None"]])
+        return ["All"] + unique_vals
+    return ["All"]
+
 # --- SIDEBAR FILTERS ---
 st.sidebar.title("🔍 Slicer Controls")
+
+# Parse dates safely
+if "Date" in df_slicer.columns:
+    df_slicer["Date"] = pd.to_datetime(df_slicer["Date"], errors="coerce")
+    valid_dates = df_slicer["Date"].dropna()
+    min_date = valid_dates.min().date() if not valid_dates.empty else pd.to_datetime("2025-01-01").date()
+    max_date = valid_dates.max().date() if not valid_dates.empty else pd.to_datetime("2026-12-31").date()
+else:
+    min_date = pd.to_datetime("2025-01-01").date()
+    max_date = pd.to_datetime("2026-12-31").date()
 
 date_range = st.sidebar.date_input(
     "Date Range Filter",
@@ -196,7 +218,7 @@ date_range = st.sidebar.date_input(
     max_value=max_date,
 )
 
-if isinstance(date_range, tuple) and len(date_range) == 2:
+if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
     date_from, date_to = date_range
 else:
     date_from, date_to = min_date, max_date
@@ -210,6 +232,9 @@ for col in COLUMNS_SLICER:
             default=["All"]
         )
 
+# Reset Button to clear all filters quickly
+if st.sidebar.button("🔄 Reset All Filters"):
+    st.rerun()
 
 # --- DATA FILTERING ENGINE ---
 filtered_df = df_slicer.copy()
@@ -218,20 +243,33 @@ target_df = df_target.copy()
 if not filtered_df.empty:
     filtered_df['Symptom'] = classify_symptomatic(filtered_df, COLUMN_SYMPTOM)
 
-    # Apply Date Filter
+    # 1. Date Range Filtering
     if "Date" in filtered_df.columns and date_from and date_to:
-        filtered_df = filtered_df[(filtered_df["Date"].dt.date >= date_from) & (filtered_df["Date"].dt.date <= date_to)]
-    if "ReportingDate" in target_df.columns and date_from and date_to:
-        target_df = target_df[(target_df['ReportingDate'].dt.year >= date_from.year) & (target_df['ReportingDate'].dt.year <= date_to.year)]
+        filtered_df = filtered_df[
+            (filtered_df["Date"].dt.date >= date_from) & 
+            (filtered_df["Date"].dt.date <= date_to)
+        ]
 
-    # Apply Multi-select Slicer Filters
+    if "ReportingDate" in target_df.columns and date_from and date_to:
+        target_df["ReportingDate"] = pd.to_datetime(target_df["ReportingDate"], errors="coerce")
+        target_df = target_df[
+            (target_df['ReportingDate'].dt.year >= date_from.year) & 
+            (target_df['ReportingDate'].dt.year <= date_to.year)
+        ]
+
+    # 2. Robust Multi-Select Filtering
     for col, selected_vals in slicer_selections.items():
         if selected_vals and "All" not in selected_vals:
-            if col in filtered_df.columns:
-                filtered_df = filtered_df[filtered_df[col].astype(str).str.strip().isin(selected_vals)]
-            if col in target_df.columns:
-                target_df = target_df[target_df[col].astype(str).str.strip().isin(selected_vals)]
+            # Clean selection values
+            str_selected = [str(v).strip() for v in selected_vals]
 
+            # Filter Dashboard Data
+            if col in filtered_df.columns:
+                filtered_df = filtered_df[clean_series(filtered_df[col]).isin(str_selected)]
+
+            # Filter Target Data (only if column exists in target_df)
+            if col in target_df.columns:
+                target_df = target_df[clean_series(target_df[col]).isin(str_selected)]
 
 # --- MAIN HEADER ---
 st.title("YgnTBPro Data Analysis Dashboard")
