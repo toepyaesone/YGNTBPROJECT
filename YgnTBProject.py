@@ -1,8 +1,7 @@
 import pandas as pd
 import streamlit as st
 import datetime
-
-# import functions  # Import the functions module
+import functions  # Import the functions module
 
 st.set_page_config(page_title="YGN TB Data Viewer", layout="wide")
 
