@@ -158,7 +158,7 @@ if df_ygntbpro_supabase is not None and not df_ygntbpro_supabase.empty:
     st.download_button(
         label="📥 Download Filtered Data CSV",
         data=csv_data,
-        file_name=f"{table_name}_filtered_data.csv",
+        file_name=f"filtered_data.csv",
         mime="text/csv",
     )
 
