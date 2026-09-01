@@ -3,6 +3,9 @@ import pandas as pd
 import streamlit as st
 import functions as fn
 
+SUPABASE_URL = "https://kocihpxevlowqbguhstf.supabase.co"
+SUPABASE_KEY = "sb_publishable_1MWEplxpyp0YOGW_TxZiMQ_HbvtHP5Z"
+
 st.set_page_config(page_title="Yangon TB Project Dashboard", layout="wide")
 
 # Option 1: Wrap fetching logic in a cached function
