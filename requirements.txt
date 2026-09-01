@@ -15,10 +15,8 @@ jsonschema-specifications==2025.9.1
 MarkupSafe==3.0.3
 narwhals==2.25.0
 numpy==2.5.2
-openpyxl>=3.1.0
 packaging==26.3
 pandas==3.0.5
-plotly>=5.18.0
 pillow==12.3.0
 protobuf==7.36.1
 pyarrow==25.0.1
@@ -31,7 +29,6 @@ rpds-py==2026.6.3
 six==1.17.0
 starlette==1.6.0
 streamlit==1.62.0
-supabase>=2.0.0
 toml==0.10.2
 typing_extensions==4.16.0
 tzdata==2026.3
