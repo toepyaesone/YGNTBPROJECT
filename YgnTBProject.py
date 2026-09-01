@@ -206,7 +206,7 @@ if df_dashboard is not None and not df_dashboard.empty:
     # --- 3. DISPLAY PLOTLY CHARTS ---
     # Ensure progress dataset exists before passing to visualization
     achievement = fn.function_indicator_achievement(filtered_df,CRITERIA_INDICATORS)
-    progress = fn.function_merge_target(achievement,target_df,indicators=tuple(CRITERIA_INDICATORS.keys()))
+    progress = fn.function_merge_target(achievement,df_target,indicators=tuple(CRITERIA_INDICATORS.keys()))
 
     total_attendant = len(filtered_df)
 
