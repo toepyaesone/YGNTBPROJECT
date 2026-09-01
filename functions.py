@@ -10,7 +10,88 @@ SUPABASE_URL = "https://kocihpxevlowqbguhstf.supabase.co"
 SUPABASE_KEY = "sb_publishable_1MWEplxpyp0YOGW_TxZiMQ_HbvtHP5Z"
 ALT_CLOUDFLARE_IPS = ["104.16.132.229", "104.18.32.7", "172.67.74.135"]
 
+COLUMN_UNCODE = [
+        'Team','Sex','VOL','Referralfor','Cough','Fever','Wtloss','Nightsweat','Haemoptysis','Chestpain','Fatigue','Neckglands',
+        'TBcontact','MDRTBcontact','TBTreatmenthistory','Smoking','Reasonforexamination','TypeofPatient','PublicHealthCare1',
+        'TypeofPatient1','DM1','HT1','DMHT1','RTIAVI1','Generalweakness1','Other1','Cxrr','CXRresult','Sputum_request','Micror',
+        'Sputummicroscopyresult','Genexpertrequested','GeneXpertresult','Bact_status','Case','Treatmentreferral','TreatmentRegimen',
+        'Placeforreferral','TreatmentOutcome1211','ContactInvestigation111','DOTSupervision111','DOTsupervisiontillTreatmentComp111',
+        'Seeing1','Hearing1','Walking1','Cognition1','Selfcare1','Communication1','Disability1','Xray2ndReading11','CXRresult211',
+        'TypeofTBTreatment'
+    ]
+
+COLUMN_DISABILITY = ["Seeing1","Hearing1","Walking1","Cognition1","Selfcare1","Communication1"]
+COLUMN_SYMPTOM = ['Cough','Fever','Wtloss','Nightsweat','Haemoptysis','Chestpain','Fatigue','Neckglands']
+COLUMN_PRESERVED_FOR_TARGET = ["ReportingDate","Team","Tsp","TargetCategory","Group"]
+    
+UNCODE_DISABILITY = {
+        "1": "No - No Difficulty",
+        "2": "Yes - Some Difficulty",
+        "3": "Yes - A lot of Difficulty",
+        "4": "Yes - Can not do it at all"
+    }
+    
+UNCODE_MAPPING = {
+        "CXRresult": {
+            "1": "Normal", "2": "TB Active", "3": "TB Suspect", "4": "TB Healed", "5": "Other Abnormal"
+        },
+        "CXRresult211": {
+            "1": "Normal", "2": "TB Active", "3": "TB Suspect", "4": "TB Healed", "5": "Other Abnormal"
+        },
+        "GeneXpertresult": {
+            "0": "N", "1": "I", "2": "T", "3": "RR", "4": "TI", "5": "Denied", "6": "Missing", "7": "TT"
+        },
+        "Placeforreferral": {
+            "1": "NTP", "2": "MMA", "3": "PSI", "4": "MATA", "5": "Other"
+        },
+        "TreatmentRegimen": {
+            "1": "IR", "2": "RR", "3": "CR", "4": "MDR", "5": "MR"
+        },
+        "TypeofTBTreatment": {"1": "DS-TB", "2": "DR-TB", "3": "TPT"},
+        "Sex": {"1": "Male", "2": "Female"},
+        "Cxrr": {"1": "Requested", "2": "Not Requested"},
+        "Reasonforexamination": {"1": "Diagnosis", "2": "Follow-Up"},
+        "VOL": {"1": "Volunteer Referral", "2": "Walk-In"},
+        "Referralfor": {"1": "Presumptive", "2": "CI"},
+        "Case": {"1": "TB", "2": "No TB"},
+        "DM1": {"1": "DM-New", "2": "No DM", "3": "DM-Old"},
+        "HT1": {"1": "HT-New", "2": "No DM", "3": "HT-Old"},
+        "HIVStatus": {"N": "Negative", "P": "Positive", "U": "Unknown"},
+        "Genexpertrequested": {"1": "Requested", "2": "Not Requested"},
+        "Bact_status": {"1": "BC", "2": "CD"},
+        "Treatmentreferral": {"1": "Registered", "2": "Not Registered"},
+        "TypeofPatient1": {"1": "New", "2": "Old"},
+        "Team": {"1": "MMA", "5": "MATA"}
+    }
+    
+UNCODE_DEFAULT = {"1": "Yes", "2": "No"}
 MISSING_STRINGS = {"", "none", "nan", "null", "n/a", "na", "<na>", "nat", "#n/a", "-", "None", "NONE", "NaN", "NULL", "<NA>", "N/A", "NaT"}
+    
+CRITERIA_INDICATORS = {
+        "Examined Cases": {"Reasonforexamination": "Diagnosis"},
+        "Notified Cases": {"Reasonforexamination": "Diagnosis", "Case": "TB"},
+        "BC Cases": {"Reasonforexamination": "Diagnosis", "Case": "TB", "Bact_status": "BC"}
+    }
+    
+CATEGORY_PHC_CRITERIA = {
+        "DM1": {"DM-New": "DM", "DM-Old": "DM"},
+        "HT1": {"HT-New": "HT", "HT-Old": "HT"},
+        'RTIAVI1': {"Yes": "AVI"}, 
+        'Generalweakness1': {"Yes": "General Weakness"},
+        'Other1': {"Yes": "Others"}
+    }
+    
+COLUMN_CI_DOTS = [
+        'Case','Bact_status','Treatmentreferral','TypeofTBTreatment','Age',
+        'HIVStatus','ContactInvestigation111', 'DOTSupervision111', 
+        'DOTStartedDate111','DOTsupervisiontillTreatmentComp111',
+        'Tsp','Ptstsp','VOL','Referralfor','VolunteerName','Organization',
+        'TreatmentOutcome1211','Tx_Outcome_Date','DOTvolName111',
+        'VolunteerGender111','VolunteerOrganization111'
+    ]
+    
+mapping_TargetCategory = {"PPM": ["PPM", "Diagnostic Center"], "Mobile": ["Mobile Visit", "Elderly Care", "Touring"]}
+
 
 def _create_censorship_resistant_session(
     host_domain: str, alt_ip: str
