@@ -245,7 +245,6 @@ def function_reporting_period(df, date_col="Date", cutoff=25):
     )
     return df
 
-
 def create_category(
     df, source_col, criteria_mapping, output_col="COLUMN_NEW", default=""
 ):
@@ -257,6 +256,51 @@ def create_category(
     choices = list(criteria_mapping.keys())
     df[output_col] = np.select(conditions, choices, default=default)
     return df
+
+def create_category_combined(df, criteria_dict, new_column_name='PHC Category', sep=', '):
+    df_copy = df.copy()
+    # Collect mapped series for columns that exist in the DataFrame
+    mapped_columns = [
+        df_copy[col].map(mapping) 
+        for col, mapping in criteria_dict.items() 
+        if col in df_copy.columns]
+    if mapped_columns:
+        combined_df = pd.concat(mapped_columns, axis=1)
+        df_copy[new_column_name] = combined_df.apply(
+            lambda row: sep.join(dict.fromkeys(row.dropna().astype(str))), axis=1
+        ).replace('', np.nan)
+    else:
+        df_copy[new_column_name] = np.nan
+    return df_copy
+
+def ci_entitled(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    base_filter = (df["Case"] == "TB") & (df["Treatmentreferral"] == "Registered")
+    age_numeric = pd.to_numeric(df["Age"], errors="coerce")
+    cond_dr_tb = base_filter & (df["TypeofTBTreatment"] == "DR-TB")
+    cond_tb_hiv = base_filter & (df["HIVStatus"] == "P")
+    cond_under5 = base_filter & (age_numeric < 5)
+    cond_dstb_bc = base_filter & (df["Bact_status"] == "BC")
+    conditions = [cond_dr_tb, cond_tb_hiv, cond_under5, cond_dstb_bc]
+    choices = ["DR-TB", "TB-HIV", "Under5", "DS-TB_BC"]
+    df["ECI"] = np.select(conditions, choices, default=None)
+    return df
+
+def classify_symptomatic(df: pd.DataFrame, symptom_cols, target_val: str = "yes") -> pd.Series:
+    cols = [symptom_cols] if isinstance(symptom_cols, str) else list(symptom_cols)
+    valid_cols = [c for c in cols if c in df.columns]
+    if not valid_cols:
+        return pd.Series("Asymptomatic", index=df.index)
+    cleaned_symptoms = (
+        df[valid_cols]
+        .fillna("")
+        .astype(str)
+        .apply(lambda col: col.str.strip().str.lower())
+    )
+    has_symptom_mask = cleaned_symptoms.eq(target_val.lower()).any(axis=1)
+    symptom_series = pd.Series("Asymptomatic", index=df.index)
+    symptom_series[has_symptom_mask] = "Symptomatic"
+    return symptom_series
 
 
 def function_indicator_achievement(
