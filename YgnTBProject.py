@@ -1,9 +1,15 @@
 import datetime
 import pandas as pd
 import streamlit as st
+import os
+import sys
 
-# Import custom project functions
+# Add root directory to python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Now import project functions with explicit exception logging
 try:
+    import functions as fn
     from functions import (
         switchingRowToColumn,
         function_uncode,
@@ -20,12 +26,13 @@ try:
         plotly_target_achievement_allcharts,
         plotly_funnel,
         plotly_table_count_percent,
-        # Import data loader function from functions.py
         functionGetDataFromTable,
     )
-except ImportError:
-    st.error("Could not import functions from 'functions.py'. Ensure 'functions.py' exists in your root directory.")
+except Exception as e:
+    st.error(f"❌ Failed to load 'functions.py': **{e}**")
+    st.warning("Check your requirements.txt for missing packages (e.g., supabase, openpyxl, requests).")
     st.stop()
+
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
