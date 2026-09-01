@@ -109,6 +109,7 @@ COLUMN_CI_DOTS = ['Case','Bact_status','Treatmentreferral','TypeofTBTreatment','
                   'TreatmentOutcome1211','Tx_Outcome_Date','DOTvolName111',
                   'VolunteerGender111','VolunteerOrganization111']
 
+mapping_TargetCategory = {"PPM": ["PPM", "Diagnostic Center"], "Mobile": ["Mobile Visit", "Elderly Care", "Touring"]}
 
 # OPTIMIZATION 1: Fetch AND pre-process data inside st.cache_data
 @st.cache_data(ttl=600, show_spinner=False)
@@ -137,7 +138,6 @@ def load_and_preprocess_data():
         df_dashboard["Date"] = pd.to_datetime(df_dashboard["Date"], errors="coerce")
     
     return df_dashboard, df_target
-
 
 # Fetch processed data
 with st.spinner("Connecting to Supabase and preparing dataset..."):
