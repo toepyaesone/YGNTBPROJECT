@@ -6,8 +6,8 @@ import requests
 import requests.adapters
 import urllib3.util.connection as urllib3_conn
 
-# SUPABASE_URL = "https://kocihpxevlowqbguhstf.supabase.co"
-# SUPABASE_KEY = "sb_publishable_1MWEplxpyp0YOGW_TxZiMQ_HbvtHP5Z"
+SUPABASE_URL = "https://kocihpxevlowqbguhstf.supabase.co"
+SUPABASE_KEY = "sb_publishable_1MWEplxpyp0YOGW_TxZiMQ_HbvtHP5Z"
 ALT_CLOUDFLARE_IPS = ["104.16.132.229", "104.18.32.7", "172.67.74.135"]
 
 MISSING_STRINGS = {"", "none", "nan", "null", "n/a", "na", "<na>", "nat", "#n/a", "-", "None", "NONE", "NaN", "NULL", "<NA>", "N/A", "NaT"}
