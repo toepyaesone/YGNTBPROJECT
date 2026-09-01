@@ -1,18 +1,19 @@
 import datetime
+import numpy as np
 import pandas as pd
 import streamlit as st
 
-# Import all processing and plotting utilities from functions module
+# Import processing and plotting utilities from functions module
 import functions as fn
 
-# Streamlit Page Config
+# --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="YgnTBPro Data Analysis Dashboard",
     page_icon="📊",
     layout="wide",
 )
 
-# Custom CSS for KPI Metric Cards
+# --- CUSTOM CSS ---
 st.markdown(
     """
     <style>
@@ -42,15 +43,18 @@ st.markdown(
         margin-top: 4px;
     }
     </style>
-""",
+    """,
     unsafe_allow_html=True,
 )
 
 
+# --- DATA LOADING (MOCK) ---
 @st.cache_data
 def load_mock_data():
     """Generates dummy baseline datasets if real data is not loaded."""
+    np.random.seed(42)
     dates = pd.date_range("2025-01-01", "2026-08-31", freq="D")
+    
     df_dash = pd.DataFrame(
         {
             "Date": np.random.choice(dates, 1000),
@@ -58,140 +62,48 @@ def load_mock_data():
             "Tsp": np.random.choice(["Kamayut", "Insein", "Thingangyun"], 1000),
             "Approach": np.random.choice(["Mobile", "Static"], 1000),
             "Clinic": np.random.choice(["Clinic 1", "Clinic 2"], 1000),
-            "Reasonforexamination": np.random.choice(
-                ["Diagnosis", "Follow-up"], 1000
-            ),
+            "Reasonforexamination": np.random.choice(["Diagnosis", "Follow-up"], 1000),
             "Case": np.random.choice(["TB", "Non-TB"], 1000),
             "Bact_status": np.random.choice(["BC", "CD"], 1000),
-            "Treatmentreferral": np.random.choice(
-                ["Registered", "Referred"], 1000
-            ),
+            "Treatmentreferral": np.random.choice(["Registered", "Referred"], 1000),
+            "TypeofTBTreatment": np.random.choice(["DS-TB", "DR-TB"], 1000),
             "Sex": np.random.choice(["Male", "Female"], 1000),
             "Age": np.random.randint(10, 80, 1000),
-            "CXRresult": np.random.choice(
-                ["TB Suspect", "Normal", "TB Active"], 1000
-            ),
+            "CXRresult": np.random.choice(["TB Suspect", "Normal", "TB Active"], 1000),
             "GeneXpertresult": np.random.choice(["N", "T", "RR"], 1000),
             "VOL": np.random.choice(["Volunteer Referral", "Walk-In"], 1000),
             "Referralfor": np.random.choice(["CI", "Presumptive"], 1000),
             "Placeforreferral": np.random.choice(["Public", "Private"], 1000),
             "Symptom_Cough": np.random.choice(["yes", "no"], 1000),
+            "Cxrr": np.random.choice(["Requested", "Not Requested"], 1000),
+            "Genexpertrequested": np.random.choice(["Requested", "Not Requested"], 1000),
         }
     )
 
-    reporting_dates = pd.date_range("2025-01-01", "2026-12-31", freq="M")
+    reporting_dates = pd.date_range("2025-01-01", "2026-12-31", freq="MS")
     df_target = pd.DataFrame(
         {
             "ReportingDate": reporting_dates,
             "Examined Cases Target": [500] * len(reporting_dates),
-            "Examined Cases Achievement": np.random.randint(
-                400, 600, len(reporting_dates)
-            ),
+            "Examined Cases Achievement": np.random.randint(400, 600, len(reporting_dates)),
             "Notified Cases Target": [200] * len(reporting_dates),
-            "Notified Cases Achievement": np.random.randint(
-                150, 250, len(reporting_dates)
-            ),
+            "Notified Cases Achievement": np.random.randint(150, 250, len(reporting_dates)),
             "BC Cases Target": [100] * len(reporting_dates),
-            "BC Cases Achievement": np.random.randint(
-                80, 120, len(reporting_dates)
-            ),
+            "BC Cases Achievement": np.random.randint(80, 120, len(reporting_dates)),
         }
     )
 
     return df_dash, df_target
 
 
-# --- DATA PREPARATION ---
+# --- INITIALIZE DATA & CONFIGURATIONS ---
 df_dashboard, df_target = load_mock_data()
-
-COLUMN_UNCODE = ['Team','Sex','VOL','Referralfor','Cough','Fever','Wtloss','Nightsweat','Haemoptysis','Chestpain','Fatigue','Neckglands',
-              'TBcontact','MDRTBcontact','TBTreatmenthistory','Smoking','Reasonforexamination','TypeofPatient','PublicHealthCare1',
-              'TypeofPatient1','DM1','HT1','DMHT1','RTIAVI1','Generalweakness1','Other1','Cxrr','CXRresult','Sputum_request','Micror',
-              'Sputummicroscopyresult','Genexpertrequested','GeneXpertresult','Bact_status','Case','Treatmentreferral','TreatmentRegimen',
-              'Placeforreferral','TreatmentOutcome1211','ContactInvestigation111','DOTSupervision111','DOTsupervisiontillTreatmentComp111',
-              'Seeing1','Hearing1','Walking1','Cognition1','Selfcare1','Communication1','Disability1','Xray2ndReading11','CXRresult211',
-              'TypeofTBTreatment']
-
-COLUMN_DISABILITY = ["Seeing1","Hearing1","Walking1","Cognition1","Selfcare1","Communication1"]
-
-COLUMN_SYMPTOM = ['Cough','Fever','Wtloss','Nightsweat','Haemoptysis','Chestpain','Fatigue','Neckglands']
-
-COLUMN_PRESERVED_FOR_TARGET = ["ReportingDate","Team","Tsp","TargetCategory","Group"]
-
-UNCODE_DISABILITY = {"1": "No - No Difficulty","2": "Yes - Some Difficulty","3": "Yes - A lot of Difficulty","4": "Yes - Can not do it at all"}
-
-UNCODE_MAPPING = {
-    "CXRresult": {
-        "1": "Normal",
-        "2": "TB Active",
-        "3": "TB Suspect",
-        "4": "TB Healed",
-        "5": "Other Abnormal",
-    },
-    "GeneXpertresult": {
-        "0": "N",
-        "1": "I",
-        "2": "T",
-        "3": "RR",
-        "4": "TI",
-        "5": "Denied",
-        "6": "Missing",
-        "7": "TT",
-    },
-    "Placeforreferral": {
-        "1": "NTP",
-        "2": "MMA",
-        "3": "PSI",
-        "4": "MATA",
-        "5": "Other",
-    },
-    "TreatmentRegimen": {
-        "1": "IR",
-        "2": "RR",
-        "3": "CR",
-        "4": "MDR",
-        "5": "MR",
-    },
-    "TypeofTBTreatment": {"1": "DS-TB", "2": "DR-TB", "3": "TPT"},
-    "Sex": {"1": "Male", "2": "Female"},
-    "Cxrr": {"1": "Requested", "2": "Not Requested"},
-    "Reasonforexamination": {"1": "Diagnosis", "2": "Follow-Up"},
-    "VOL": {"1": "Volunteer Referral", "2": "Walk-In"},
-    "Referralfor": {"1": "Presumptive", "2": "CI"},
-    "Case": {"1": "TB", "2": "No TB"},
-    "DM1": {"1": "TB-DM", "2": "No DM", "3": "TB-DM"},
-    "HIVStatus": {"N": "Negative", "P": "Positive", "U": "Unknown"},
-    "Genexpertrequested":{"1":"Requested","2":"Not Requested"},
-    "Bact_status": {"1": "BC","2": "CD"},
-    "Treatmentreferral": {"1": "Registered", "2": "Not Registered"},
-    "Team":{"1":"MMA", "5":"MATA"}}
-
-UNCODE_DEFAULT = {"1": "Yes", "2": "No"}
-
-MISSING_STRINGS = {"","none","nan","null","n/a","na","<na>","nat","#n/a","-","None","NONE","NaN","NULL","<NA>","N/A","NaT"}
-
-CRITERIA_INDICATORS = {"Examined Cases": {"Reasonforexamination": "Diagnosis"},
-                       "Notified Cases": {"Reasonforexamination": "Diagnosis", "Case": "TB"},
-                       "BC Cases": {"Reasonforexamination": "Diagnosis","Case": "TB","Bact_status": "BC"}}
-
-df_target = switchingRowToColumn(df=df_target, column_name="Indicator",preserved_column_list=COLUMN_PRESERVED_FOR_TARGET,value_col="Target")
-df_target = function_uncode(df=df_target,colName=["Team"], mapping=UNCODE_MAPPING)
-df_target = function_reporting_period(df_target,date_col="ReportingDate")
-df_target.rename(columns={"Group":"Clinic"},inplace=True)
-
-
-mapping_TargetCategory = {"PPM": ["PPM", "Diagnostic Center"],"Mobile": ["Mobile Visit", "Elderly Care", "Touring"]}
-df_dashboard = create_category(df_dashboard,source_col="Approach",criteria_mapping=mapping_TargetCategory,output_col="TargetCategory",default="")
-df_dashboard.rename(columns={"EPI11":"Clinic"},inplace=True)
-df_dashboard = function_uncode(df_dashboard,colName=COLUMN_UNCODE, mapping=UNCODE_MAPPING)
-df_dashboard = function_reporting_period(df_dashboard)
-
 
 COLUMN_SYMPTOM = ["Symptom_Cough"]
 CRITERIA_INDICATORS = {
-    "Examined Cases": {},
-    "Notified Cases": {},
-    "BC Cases": {},
+    "Examined Cases": {"Reasonforexamination": "Diagnosis"},
+    "Notified Cases": {"Reasonforexamination": "Diagnosis", "Case": "TB"},
+    "BC Cases": {"Reasonforexamination": "Diagnosis", "Case": "TB", "Bact_status": "BC"},
 }
 
 df_slicer = df_dashboard.copy()
@@ -204,7 +116,6 @@ max_date = df_slicer["Date"].max().date()
 # --- SIDEBAR FILTERS ---
 st.sidebar.title("🔍 Filter Options")
 
-# Date Pickers
 date_range = st.sidebar.date_input(
     "Select Date Range",
     value=(min_date, max_date),
@@ -217,10 +128,9 @@ if isinstance(date_range, tuple) and len(date_range) == 2:
 else:
     date_from, date_to = min_date, max_date
 
-# Dynamic Multi-Select Slicers
 slicer_selections = {}
-for col in fn.COLUMNS_SLICER:
-    options = fn.get_options(df_slicer, col)
+for col in getattr(fn, "COLUMNS_SLICER", ["Team", "Tsp", "Clinic"]):
+    options = fn.get_options(df_slicer, col) if hasattr(fn, "get_options") else ["All"]
     slicer_selections[col] = st.sidebar.multiselect(
         label=f"{col}", options=options, default=["All"]
     )
@@ -230,9 +140,12 @@ for col in fn.COLUMNS_SLICER:
 filtered_df = df_slicer.copy()
 target_df = df_target.copy()
 
-filtered_df["Symptom"] = fn.classify_symptomatic(filtered_df, COLUMN_SYMPTOM)
+if hasattr(fn, "classify_symptomatic"):
+    filtered_df["Symptom"] = fn.classify_symptomatic(filtered_df, COLUMN_SYMPTOM)
+else:
+    filtered_df["Symptom"] = filtered_df["Symptom_Cough"]
 
-# Date Filtering
+# Apply Date Filters
 if date_from:
     filtered_df = filtered_df[filtered_df["Date"].dt.date >= date_from]
     target_df = target_df[target_df["ReportingDate"].dt.year >= date_from.year]
@@ -240,7 +153,7 @@ if date_to:
     filtered_df = filtered_df[filtered_df["Date"].dt.date <= date_to]
     target_df = target_df[target_df["ReportingDate"].dt.year <= date_to.year]
 
-# Slicer Filtering
+# Apply Slicer Filters
 for col, selected_vals in slicer_selections.items():
     if selected_vals and "All" not in selected_vals:
         if col in filtered_df.columns:
@@ -253,17 +166,13 @@ for col, selected_vals in slicer_selections.items():
             ]
 
 
-# --- MAIN CONTENT ---
+# --- MAIN CONTENT HEADING ---
 st.title("YgnTBPro Data Analysis Dashboard")
-st.caption(
-    "Use the sidebar filters to dynamically update all indicators and visualizations."
-)
+st.caption("Use the sidebar filters to dynamically update all indicators and visualizations.")
 st.divider()
 
 # Compute Achievements & Targets
-achievement = fn.function_indicator_achievement(
-    filtered_df, CRITERIA_INDICATORS
-)
+achievement = fn.function_indicator_achievement(filtered_df, CRITERIA_INDICATORS)
 progress = fn.function_merge_target(
     achievement, target_df, indicators=tuple(CRITERIA_INDICATORS.keys())
 )
@@ -275,7 +184,7 @@ bact_confirmed_count = achievement["BC Cases"].sum()
 
 presumptive_sum = progress["Examined Cases Target"].sum()
 notified_sum = progress["Notified Cases Target"].sum()
-bact_confirmed_sum = 250
+bact_confirmed_sum = progress["BC Cases Target"].sum()
 
 
 # --- KPI METRIC CARDS ---
@@ -288,7 +197,7 @@ with k1:
             <div class="kpi-title">Total Attendant</div>
             <div class="kpi-value" style="color: #2b6cb0;">{total_attendant:,}</div>
         </div>
-    """,
+        """,
         unsafe_allow_html=True,
     )
 
@@ -300,7 +209,7 @@ with k2:
             <div class="kpi-value" style="color: #319795;">{presumptive_count:,}</div>
             <div class="kpi-subtext">Target: {presumptive_sum:,}</div>
         </div>
-    """,
+        """,
         unsafe_allow_html=True,
     )
 
@@ -312,7 +221,7 @@ with k3:
             <div class="kpi-value" style="color: #dd6b20;">{notified_count:,}</div>
             <div class="kpi-subtext">Target: {notified_sum:,}</div>
         </div>
-    """,
+        """,
         unsafe_allow_html=True,
     )
 
@@ -324,7 +233,7 @@ with k4:
             <div class="kpi-value" style="color: #805ad5;">{bact_confirmed_count:,}</div>
             <div class="kpi-subtext">Target: {bact_confirmed_sum:,}</div>
         </div>
-    """,
+        """,
         unsafe_allow_html=True,
     )
 
@@ -354,9 +263,7 @@ with c1:
     st.plotly_chart(fig_ach, use_container_width=True)
 
 with c2:
-    fig_var = fn.plotly_variance_heatmap(
-        progress, color_scale_range=(0, 200)
-    )
+    fig_var = fn.plotly_variance_heatmap(progress, color_scale_range=(0, 200))
     st.plotly_chart(fig_var, use_container_width=True)
 
 
@@ -369,11 +276,7 @@ with c3:
 with c4:
     fig_stack = fn.plotly_stack_bar(
         filtered_df,
-        columns=[
-            "Bact_status",
-            "Treatmentreferral",
-            "TypeofTBTreatment",
-        ],
+        columns=["Bact_status", "Treatmentreferral", "TypeofTBTreatment"],
         exclude_blank=True,
         orientation="h",
         title="Distribution of Cases",
@@ -381,36 +284,32 @@ with c4:
     st.plotly_chart(fig_stack, use_container_width=True)
 
 
-# 3. Heatmap & Sankey Cascade
+# 3. Diagnostic Correlation & Sankey Cascade
 c5, c6 = st.columns(2)
 with c5:
-    fig_heat = fn.function_heatmap(
-        filtered_df, "CXRresult", "GeneXpertresult"
-    )
+    fig_heat = fn.function_heatmap(filtered_df, "CXRresult", "GeneXpertresult")
     st.plotly_chart(fig_heat, use_container_width=True)
 
 with c6:
-    colSankey = {
+    col_sankey = {
         "VOL": ["Volunteer Referral", "Walk-In"],
         "Referralfor": ["CI", "Presumptive"],
         "Case": ["TB"],
         "Bact_status": ["BC", "CD"],
         "Treatmentreferral": ["Registered"],
     }
-    df_sankey = filtered_df[
-        filtered_df["Reasonforexamination"] == "Diagnosis"
-    ]
+    df_sankey = filtered_df[filtered_df["Reasonforexamination"] == "Diagnosis"]
     fig_sankey = fn.function_sankey_cascade_log(
         dataframe=df_sankey,
-        criteria_dict=colSankey,
+        criteria_dict=col_sankey,
         title="TB Cascade: Diagnosis to Registration",
         log_base=10,
     )
     st.plotly_chart(fig_sankey, use_container_width=True)
 
 
-# 4. Period Breakdowns & Target vs Achievement Grid
-st.subheader("--- Target vs Achievement Breakdowns ---")
+# 4. Target vs Achievement Charts
+st.subheader("Target vs Achievement Breakdowns")
 
 charts = fn.plotly_target_achievement_allcharts(
     dataframe=progress,
@@ -431,14 +330,8 @@ charts = fn.plotly_target_achievement_allcharts(
     ],
     optional_percentage=True,
     percentage_calc={
-        "Examined Cases": (
-            "Examined Cases Achievement",
-            "Examined Cases Target",
-        ),
-        "Notified Cases": (
-            "Notified Cases Achievement",
-            "Notified Cases Target",
-        ),
+        "Examined Cases": ("Examined Cases Achievement", "Examined Cases Target"),
+        "Notified Cases": ("Notified Cases Achievement", "Notified Cases Target"),
         "BC Cases": ("BC Cases Achievement", "BC Cases Target"),
     },
     freq="Month",
@@ -453,8 +346,8 @@ with col_c:
     st.plotly_chart(charts["BC Cases"], use_container_width=True)
 
 
-# 5. Diagnostic Funnel & Categorical Table
-st.subheader("--- Diagnostic Cascade Funnel & Summary ---")
+# 5. Diagnostic Funnel & Summary Table
+st.subheader("Diagnostic Cascade Funnel & Summary")
 
 funnel_criteria = {
     "Reasonforexamination": ["Diagnosis"],
@@ -479,9 +372,7 @@ funnel_renames = [
 
 c7, c8 = st.columns(2)
 with c7:
-    fig_funnel = fn.plotly_funnel(
-        filtered_df, funnel_criteria, funnel_renames, "Symptom"
-    )
+    fig_funnel = fn.plotly_funnel(filtered_df, funnel_criteria, funnel_renames, "Symptom")
     st.plotly_chart(fig_funnel, use_container_width=True)
 
 with c8:
@@ -500,6 +391,6 @@ with c8:
     st.plotly_chart(fig_tbl, use_container_width=True)
 
 
-# Raw Data Preview Expander
+# --- DATA PREVIEW EXPANDER ---
 with st.expander("📄 View Filtered Raw Data"):
     st.dataframe(filtered_df, use_container_width=True)
