@@ -33,23 +33,30 @@ with st.spinner("Connecting to Supabase and retrieving dataset..."):
     try:
         # Calling the function by name dynamically
         df_ygntbpro_supabase = call_function_by_name("functionGetDataFromTable", "ygntbpro")
+        df_target_supabase = call_function_by_name("functionGetDataFromTable", "target")
     except Exception as err:
         st.error(f"❌ Error during execution: {err}")
         df_ygntbpro_supabase = None
+        df_target_supabase = None
 
 
 if df_ygntbpro_supabase is not None and not df_ygntbpro_supabase.empty:
     st.success(f"✅ Successfully retrieved {len(df_ygntbpro_supabase):,} total records.")
 
-    df = df_ygntbpro_supabase.copy()
+if df_target_supabase is not None and not df_target_supabase.empty:
+    st.success(f"✅ Successfully retrieved {len(df_target_supabase):,} total records.")
+
+    # df = df_ygntbpro_supabase.copy()
+    df_dashboard = df_ygntbpro_supabase.copy()
+    df_target = df_target_supabase.copy()
 
     # --- BUG FIX: Convert Date to datetime format safely ---
     # Ensure pandas recognizes the column as datetime before extracting .date()
-    if "Date" in df.columns:
-        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    if "Date" in df_dashboard.columns:
+        df_dashboard["Date"] = pd.to_datetime(df_dashboard["Date"], errors="coerce")
         
-        min_ts = df["Date"].min()
-        max_ts = df["Date"].max()
+        min_ts = df_dashboard["Date"].min()
+        max_ts = df_dashboard["Date"].max()
         
         # Fallback to today's date if the entire column happens to be empty or null
         if pd.isna(min_ts) or pd.isna(max_ts):
@@ -66,9 +73,10 @@ if df_ygntbpro_supabase is not None and not df_ygntbpro_supabase.empty:
     st.sidebar.header("🔍 Filter Options")
     
     # Categorical columns for cascading selection
-    CATEGORICAL_COLS = ["Tsp", "Team", "Approach", "MonthDiagnosis11"]
+    CATEGORICAL_COLS = ['Team','Tsp','Approach','Clinic','Reasonforexamination','Case','Bact_status','Treatmentreferral','MonthDiagnosis11',
+                        'Cxrr', 'CXRresult','CXRresult211', 'Genexpertrequested', 'GeneXpertresult','TypeofTBTreatment','TargetCategory']
     # Ensure columns actually exist to avoid KeyErrors
-    CATEGORICAL_COLS = [col for col in CATEGORICAL_COLS if col in df.columns]
+    CATEGORICAL_COLS = [col for col in CATEGORICAL_COLS if col in df_dashboard.columns]
     
     # Reset Filters Button
     if st.sidebar.button("🔄 Reset All Filters"):
@@ -88,7 +96,7 @@ if df_ygntbpro_supabase is not None and not df_ygntbpro_supabase.empty:
     )
     
     # Start working DataFrame with Date Range slice
-    temp_df = df.copy()
+    temp_df = df_dashboard.copy()
     
     if isinstance(date_selection, (tuple, list)) and len(date_selection) == 2:
         start_date, end_date = date_selection
@@ -132,6 +140,11 @@ if df_ygntbpro_supabase is not None and not df_ygntbpro_supabase.empty:
     for col, selected_vals in selected_filters.items():
         if selected_vals:
             filtered_df = filtered_df[filtered_df[col].astype(str).isin(selected_vals)]
+
+    
+
+
+
     
     
     # --- 4. DISPLAY COMBINED RESULTS ---
