@@ -212,6 +212,27 @@ if df_target_supabase is not None and not df_target_supabase.empty:
         if selected_vals:
             filtered_df = filtered_df[filtered_df[col].astype(str).isin(selected_vals)]
 
+    ########################################
+    fig_target_achievement = fn.plotly_achievement_target_dropdown(dataframe = progress,
+                achievement_columnList = ["Examined Cases Achievement", "Notified Cases Achievement", "BC Cases Achievement"],
+                target_columnList = ["Examined Cases Target","Notified Cases Target","BC Cases Target"],
+                period = "Monthly",
+                date_col = "ReportingDate")
+    st.plotly_chart(fig_target_achievement,use_container_width=True,
+                    config={"toImageButtonOptions": {"format": "png",  # Options: 'png', 'svg', 'jpeg', 'webp'
+                                                     "filename": "tb_stacked_bar_chart",
+                                                     "height": 600,
+                                                     "width": 800,
+                                                     "scale": 2,  # Increase resolution for sharp reports/publications
+                                                    },
+                            "displayModeBar": True})
+
+
+
+
+    ########################################
+
+    
     # --- 4. DISPLAY COMBINED RESULTS ---
     st.markdown("---")
     st.subheader("Data Viewer")
