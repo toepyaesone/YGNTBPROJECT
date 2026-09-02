@@ -10,22 +10,18 @@ SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://kocihpxevlowqbguhstf.supa
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "sb_publishable_1MWEplxpyp0YOGW_TxZiMQ_HbvtHP5Z")
 
 # Static configuration mappings
-CATEGORICAL_COLS = [
-    'Team', 'Tsp', 'Approach', 'Clinic', 'Reasonforexamination', 'Case', 
-    'Bact_status', 'Treatmentreferral', 'MonthDiagnosis11', 'Cxrr', 
-    'CXRresult', 'CXRresult211', 'Genexpertrequested', 'GeneXpertresult', 
-    'TypeofTBTreatment', 'TargetCategory'
-]
+CATEGORICAL_COLS = ['Team', 'Tsp', 'Approach', 'Clinic', 'Reasonforexamination', 'Case', 
+                    'Bact_status', 'Treatmentreferral', 'MonthDiagnosis11', 'Cxrr', 
+                    'CXRresult', 'CXRresult211', 'Genexpertrequested', 'GeneXpertresult', 
+                    'TypeofTBTreatment', 'TargetCategory']
 
-COLUMN_UNCODE = [
-    'Team','Sex','VOL','Referralfor','Cough','Fever','Wtloss','Nightsweat','Haemoptysis','Chestpain','Fatigue','Neckglands',
-    'TBcontact','MDRTBcontact','TBTreatmenthistory','Smoking','Reasonforexamination','TypeofPatient','PublicHealthCare1',
-    'TypeofPatient1','DM1','HT1','DMHT1','RTIAVI1','Generalweakness1','Other1','Cxrr','CXRresult','Sputum_request','Micror',
-    'Sputummicroscopyresult','Genexpertrequested','GeneXpertresult','Bact_status','Case','Treatmentreferral','TreatmentRegimen',
-    'Placeforreferral','TreatmentOutcome1211','ContactInvestigation111','DOTSupervision111','DOTsupervisiontillTreatmentComp111',
-    'Seeing1','Hearing1','Walking1','Cognition1','Selfcare1','Communication1','Disability1','Xray2ndReading11','CXRresult211',
-    'TypeofTBTreatment'
-]
+COLUMN_UNCODE = ['Team','Sex','VOL','Referralfor','Cough','Fever','Wtloss','Nightsweat','Haemoptysis','Chestpain','Fatigue','Neckglands',
+                'TBcontact','MDRTBcontact','TBTreatmenthistory','Smoking','Reasonforexamination','TypeofPatient','PublicHealthCare1',
+                'TypeofPatient1','DM1','HT1','DMHT1','RTIAVI1','Generalweakness1','Other1','Cxrr','CXRresult','Sputum_request','Micror',
+                'Sputummicroscopyresult','Genexpertrequested','GeneXpertresult','Bact_status','Case','Treatmentreferral','TreatmentRegimen',
+                'Placeforreferral','TreatmentOutcome1211','ContactInvestigation111','DOTSupervision111','DOTsupervisiontillTreatmentComp111',
+                'Seeing1','Hearing1','Walking1','Cognition1','Selfcare1','Communication1','Disability1','Xray2ndReading11','CXRresult211',
+                'TypeofTBTreatment']
 
 COLUMN_PRESERVED_FOR_TARGET = ["ReportingDate", "Team", "Tsp", "TargetCategory", "Group"]
 
@@ -70,21 +66,38 @@ MAPPING_TARGET_CATEGORY = {"PPM": ["PPM", "Diagnostic Center"], "Mobile": ["Mobi
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def load_and_preprocess_data():
+def load_data():
     df_raw_tb = fn.functionGetDataFromTable("ygntbpro", SUPABASE_URL, SUPABASE_KEY)
     df_raw_target = fn.functionGetDataFromTable("target", SUPABASE_URL, SUPABASE_KEY)
 
-    if df_raw_tb is None or df_raw_tb.empty:
+    if df_raw_tb is None or df_raw_tb.empty or df_raw_target is None or df_raw_target.empty:
         return None, None
+    else:
+        return df_dashboard, df_target
+
+
+# Fetch processed data
+with st.spinner("Connecting to Supabase and preparing dataset..."):
+    try:
+        df_dashboard, df_target = load_data()
+    except Exception as err:
+        st.error(f"❌ Error during execution: {err}")
+        df_dashboard, df_target = None, None
+
+if df_dashboard is not None and not df_dashboard.empty:
+    st.sidebar.header("🔍 Filter Options")
 
     # Process target dataframe
     df_target = fn.switchingRowToColumn(df=df_raw_target, column_name="Indicator", preserved_column_list=COLUMN_PRESERVED_FOR_TARGET, value_col="Target")
     df_target = fn.function_uncode(df=df_target, colName=["Team"], mapping=UNCODE_MAPPING)
     df_target = fn.function_reporting_period(df_target, date_col="ReportingDate")
     df_target.rename(columns={"Group": "Clinic"}, inplace=True)
-    
+        
     if "ReportingDate" in df_target.columns:
         df_target["ReportingDate"] = pd.to_datetime(df_target["ReportingDate"], errors="coerce")
+
+    if "Date" in df_dashboard.columns:
+        df_dashboard["Date"] = pd.to_datetime(df_dashboard["Date"], errors="coerce")
 
     # Process dashboard dataframe
     df_dashboard = fn.create_category(df_raw_tb, source_col="Approach", criteria_mapping=MAPPING_TARGET_CATEGORY, output_col="TargetCategory", default="")
@@ -93,22 +106,7 @@ def load_and_preprocess_data():
     df_dashboard = fn.function_reporting_period(df_dashboard)
     df_dashboard = fn.create_category_combined(df_dashboard, CATEGORY_PHC_CRITERIA, "PrimaryHealthcare")
 
-    if "Date" in df_dashboard.columns:
-        df_dashboard["Date"] = pd.to_datetime(df_dashboard["Date"], errors="coerce")
-    
-    return df_dashboard, df_target
 
-
-# Fetch processed data
-with st.spinner("Connecting to Supabase and preparing dataset..."):
-    try:
-        df_dashboard, df_target = load_and_preprocess_data()
-    except Exception as err:
-        st.error(f"❌ Error during execution: {err}")
-        df_dashboard, df_target = None, None
-
-if df_dashboard is not None and not df_dashboard.empty:
-    st.sidebar.header("🔍 Filter Options")
 
     # Compute date limits
     if "Date" in df_dashboard.columns and df_dashboard["Date"].notna().any():
