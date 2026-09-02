@@ -197,8 +197,8 @@ def function_uncode(df: pd.DataFrame, colName=None, mapping=None) -> pd.DataFram
     df = clean_missing(df)
     mapping = mapping or {}
     if colName is None:
-        columns = list(colName)
         print("No columns specified for uncode. Please provide a column name or list of column names.")
+        return df
     elif isinstance(colName, str):
         columns = [colName]
     else:
