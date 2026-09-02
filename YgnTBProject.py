@@ -265,5 +265,5 @@ if df_ygntbpro is not None and not df_ygntbpro.empty:
         mime="text/csv",
     )
 
-elif df_dashboard is not None and df_dashboard.empty:
+elif df_ygntbpro is not None and df_ygntbpro.empty:
     st.warning("⚠️ Connected successfully, but dataset contains no records.")
