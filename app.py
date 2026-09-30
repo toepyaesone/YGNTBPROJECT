@@ -115,27 +115,54 @@ else:
     try:
         query = user_client.table(TABLE_NAME).select("*")
         
-        # 1. Apply Reporting Year Filter
+        # 1. Apply Reporting Year Filter (Supports Partial / Elastic Matching)
         if year_filter.strip():
             yf = year_filter.strip()
-            # Handles string or integer reporting year columns
-            query = query.eq("reportingyear", yf)
+            # Uses ilike for partial year matching (e.g., typing "202" matches "2024", "2025")
+            query = query.ilike("reportingyear", f"%{yf}%")
             
-        # 2. Apply Full-Text Search Across Multiple Fields
+        # 2. Apply Full-Text Search Across Text Fields
         if search_q.strip():
             sq = search_q.strip()
-            # FIX: Explicitly cast bigint/numeric columns (patientid, srno) to text (::text)
-            # to prevent PostgreSQL type mismatch errors (bigint ~~* unknown)
+            # FIX: Removed invalid '::text' syntax from PostgREST .or() string.
+            # PostgREST requires standard column identifiers inside .or().
             query = query.or_(
-                f"patientid::text.ilike.%{sq}%,name.ilike.%{sq}%,srno::text.ilike.%{sq}%,townshipname.ilike.%{sq}%"
+                f"name.ilike.%{sq}%,townshipname.ilike.%{sq}%"
             )
             
         response = query.order(PRIMARY_KEY, desc=True).limit(page_size).execute()
         df = pd.DataFrame(response.data) if response.data else pd.DataFrame()
         
     except Exception as e:
-        st.error(f"Error querying `Consultation` table: {e}")
+        st.error(f"Error querying `{TABLE_NAME}` table: {e}")
         df = pd.DataFrame()
+
+
+    # # Construct and Execute Data Query
+    # try:
+    #     query = user_client.table(TABLE_NAME).select("*")
+        
+    #     # 1. Apply Reporting Year Filter
+    #     if year_filter.strip():
+    #         yf = year_filter.strip()
+    #         # Handles string or integer reporting year columns
+    #         query = query.eq("reportingyear", yf)
+            
+    #     # 2. Apply Full-Text Search Across Multiple Fields
+    #     if search_q.strip():
+    #         sq = search_q.strip()
+    #         # FIX: Explicitly cast bigint/numeric columns (patientid, srno) to text (::text)
+    #         # to prevent PostgreSQL type mismatch errors (bigint ~~* unknown)
+    #         query = query.or_(
+    #             f"patientid::text.ilike.%{sq}%,name.ilike.%{sq}%,srno::text.ilike.%{sq}%,townshipname.ilike.%{sq}%"
+    #         )
+            
+    #     response = query.order(PRIMARY_KEY, desc=True).limit(page_size).execute()
+    #     df = pd.DataFrame(response.data) if response.data else pd.DataFrame()
+        
+    # except Exception as e:
+    #     st.error(f"Error querying `Consultation` table: {e}")
+    #     df = pd.DataFrame()
 
     is_read_only = (current_role == "viewer")
     can_add_or_delete = (current_role == "admin")
