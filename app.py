@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions  # <--- ADD THIS IMPORT
 
 # ==========================================
 # 1. PAGE & SUPABASE CONFIGURATION
@@ -30,17 +31,31 @@ if "session" not in st.session_state:
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
 
-
 def get_user_client() -> Client:
     """Returns a user-scoped Supabase client that embeds the user's Auth JWT for RLS."""
     if st.session_state.session:
         access_token = st.session_state.session.access_token
+        
+        # Pass ClientOptions instead of a raw dictionary
         return create_client(
             SUPABASE_URL,
             SUPABASE_KEY,
-            options={"headers": {"Authorization": f"Bearer {access_token}"}}
+            options=ClientOptions(
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
         )
     return base_supabase
+
+# def get_user_client() -> Client:
+#     """Returns a user-scoped Supabase client that embeds the user's Auth JWT for RLS."""
+#     if st.session_state.session:
+#         access_token = st.session_state.session.access_token
+#         return create_client(
+#             SUPABASE_URL,
+#             SUPABASE_KEY,
+#             options={"headers": {"Authorization": f"Bearer {access_token}"}}
+#         )
+#     return base_supabase
 
 
 def login_user(email, password):
