@@ -248,17 +248,30 @@ else:
             "disability": st.column_config.TextColumn("Disability"),
             "remark": st.column_config.TextColumn("Remark", width="large")
         }
+        # -------------------------------------------------------------------------
+        # 1. Normalize DataFrame Columns (Strip whitespace & preserve exact case)
+        # -------------------------------------------------------------------------
+        if not df.empty:
+            df.columns = df.columns.str.strip()
 
-        # Data Editor Grid
-        edited_df = st.data_editor(
-            df,
-            key="consultation_grid",
-            disabled=is_read_only or [PRIMARY_KEY, "updated_at"],
-            num_rows="dynamic" if can_add_or_delete else "fixed",
-            use_container_width=True,
-            hide_index=True,
-            column_config=column_configs
-        )
+            # 2. Filter column_configs so ONLY existing columns are passed
+            # This prevents StreamlitAPIException if a column is missing or named differently
+            valid_column_configs = {
+                col: config 
+                for col, config in column_configs.items() 
+                if col in df.columns
+            }
+
+            # 3. Safely pass filtered column_configs to st.data_editor
+            edited_df = st.data_editor(
+                df,
+                key="consultation_grid",
+                disabled=is_read_only or [col for col in [PRIMARY_KEY, "updated_at"] if col in df.columns],
+                num_rows="dynamic" if can_add_or_delete else "fixed",
+                use_container_width=True,
+                hide_index=True,
+                column_config=valid_column_configs  # <-- Use dynamically filtered dict
+            )
 
         # Delta capture
         editor_state = st.session_state.get("consultation_grid", {})
