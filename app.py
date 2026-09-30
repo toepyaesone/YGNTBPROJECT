@@ -31,7 +31,6 @@ SUPABASE_KEY = st.secrets.get(
 TABLE_NAME = "Consultation"
 PRIMARY_KEY = "patientid"
 
-
 base_supabase: Client = create_client(
     SUPABASE_URL,
     SUPABASE_KEY
@@ -51,26 +50,9 @@ if "session" not in st.session_state:
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
 
-if "filter_reset" not in st.session_state:
-    st.session_state.filter_reset = False
-
 
 # ============================================================
 # 4. FILTER CONFIGURATION
-# ============================================================
-#
-# IMPORTANT:
-# Change the database column names below if your Supabase
-# Consultation table uses different names.
-#
-# Example:
-# "tsp"        -> township column
-# "visitno"    -> visit number
-# "srno"       -> serial number
-# "approach"   -> approach
-# "team"       -> team
-# "date"       -> consultation/date field
-#
 # ============================================================
 
 FILTER_COLUMNS = {
@@ -141,16 +123,13 @@ def login_user(email, password):
         )
 
         if role_res.data:
-
             st.session_state.user_role = (
                 role_res.data.get(
                     "role",
                     "viewer"
                 )
             )
-
         else:
-
             st.session_state.user_role = "viewer"
 
         st.success(
@@ -179,20 +158,21 @@ def logout_user():
 
     st.session_state.session = None
     st.session_state.user_role = None
+    st.session_state.grid_version += 1
 
     st.rerun()
 
 
 # ============================================================
-# 8. RESET FILTER CALLBACK
+# 8. RESET ALL FILTERS
 # ============================================================
 #
 # IMPORTANT:
-# This is the key fix for the "Reset Filter" problem.
+# Do NOT assign widget values directly after widgets have
+# already been created.
 #
-# Streamlit widget values are cleared BEFORE the widgets
-# are recreated.
-#
+# Deleting the widget keys and changing grid_version causes
+# Streamlit to recreate them with empty values.
 # ============================================================
 
 def reset_filters():
@@ -207,20 +187,20 @@ def reset_filters():
         "filter_reportingyear",
         "filter_date_from",
         "filter_date_to",
-        "search_input",
     ]
 
     for key in filter_keys:
 
-        if key in st.session_state:
-            del st.session_state[key]
+        st.session_state.pop(
+            key,
+            None
+        )
 
-    # Force fresh data editor
     st.session_state.grid_version += 1
 
 
 # ============================================================
-# 9. GET UNIQUE FILTER VALUES
+# 9. GET UNIQUE VALUES
 # ============================================================
 
 def get_unique_values(
@@ -238,26 +218,29 @@ def get_unique_values(
         )
 
         if not response.data:
-
             return []
 
         values = []
 
         for row in response.data:
 
-            value = row.get(
-                column_name
-            )
+            value = row.get(column_name)
 
-            if value is not None:
+            if value is None:
+                continue
+
+            try:
 
                 if pd.isna(value):
                     continue
 
-                value = str(value).strip()
+            except Exception:
+                pass
 
-                if value != "":
-                    values.append(value)
+            value = str(value).strip()
+
+            if value:
+                values.append(value)
 
         return sorted(
             list(set(values)),
@@ -267,15 +250,14 @@ def get_unique_values(
     except Exception as e:
 
         st.warning(
-            f"Unable to load values for "
-            f"`{column_name}`: {e}"
+            f"Could not load `{column_name}`: {e}"
         )
 
         return []
 
 
 # ============================================================
-# 10. LOGIN INTERFACE
+# 10. LOGIN SCREEN
 # ============================================================
 
 if not st.session_state.session:
@@ -360,206 +342,175 @@ else:
             "🚪 Logout",
             use_container_width=True
         ):
-
             logout_user()
+
+    st.divider()
+
+
+    # ========================================================
+    # LOAD FILTER VALUES
+    # ========================================================
+
+    filter_values = {}
+
+    for label, column in FILTER_COLUMNS.items():
+
+        filter_values[column] = get_unique_values(
+            user_client,
+            column
+        )
+
+
+    # ========================================================
+    # FILTER PANEL
+    # ========================================================
+
+    st.subheader("🔎 Filters")
+
+
+    # --------------------------------------------------------
+    # ROW 1
+    # --------------------------------------------------------
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+
+        patientid_filter = st.multiselect(
+            "Patient ID",
+            options=filter_values.get(
+                "patientid",
+                []
+            ),
+            key="filter_patientid",
+            placeholder="Select Patient ID(s)"
+        )
+
+    with col2:
+
+        tsp_filter = st.multiselect(
+            "Township (TSP)",
+            options=filter_values.get(
+                "tsp",
+                []
+            ),
+            key="filter_tsp",
+            placeholder="Select Township(s)"
+        )
+
+    with col3:
+
+        visitno_filter = st.multiselect(
+            "Visit No",
+            options=filter_values.get(
+                "visitno",
+                []
+            ),
+            key="filter_visitno",
+            placeholder="Select Visit No(s)"
+        )
+
+
+    # --------------------------------------------------------
+    # ROW 2
+    # --------------------------------------------------------
+
+    col4, col5, col6 = st.columns(3)
+
+    with col4:
+
+        srno_filter = st.multiselect(
+            "Serial No",
+            options=filter_values.get(
+                "srno",
+                []
+            ),
+            key="filter_srno",
+            placeholder="Select Serial No(s)"
+        )
+
+    with col5:
+
+        approach_filter = st.multiselect(
+            "Approach",
+            options=filter_values.get(
+                "approach",
+                []
+            ),
+            key="filter_approach",
+            placeholder="Select Approach(es)"
+        )
+
+    with col6:
+
+        team_filter = st.multiselect(
+            "Team",
+            options=filter_values.get(
+                "team",
+                []
+            ),
+            key="filter_team",
+            placeholder="Select Team(s)"
+        )
+
+
+    # --------------------------------------------------------
+    # ROW 3
+    # --------------------------------------------------------
+
+    col7, col8, col9 = st.columns(3)
+
+    with col7:
+
+        reportingyear_filter = st.multiselect(
+            "Reporting Year",
+            options=filter_values.get(
+                "reportingyear",
+                []
+            ),
+            key="filter_reportingyear",
+            placeholder="Select Year(s)"
+        )
+
+    with col8:
+
+        date_from = st.date_input(
+            "📅 Date From",
+            value=None,
+            key="filter_date_from"
+        )
+
+    with col9:
+
+        date_to = st.date_input(
+            "📅 Date To",
+            value=None,
+            key="filter_date_to"
+        )
+
+
+    # --------------------------------------------------------
+    # FILTER BUTTONS
+    # --------------------------------------------------------
+
+    col_filter_status, col_reset = st.columns(
+        [5, 1]
+    )
+
+    with col_reset:
+
+        st.button(
+            "🔄 Reset Filters",
+            on_click=reset_filters,
+            use_container_width=True
+        )
 
 
     st.divider()
 
 
     # ========================================================
-    # FILTER SECTION
-    # ========================================================
-
-    with st.expander(
-        "🔎 Search & Filters",
-        expanded=True
-    ):
-
-        # ----------------------------------------------------
-        # GENERAL SEARCH
-        # ----------------------------------------------------
-
-        search_q = st.text_input(
-            "🔍 General Search",
-            placeholder=(
-                "Search Patient ID, name, township, "
-                "serial number..."
-            ),
-            key="search_input"
-        )
-
-
-        st.markdown(
-            "**Filter by specific fields**"
-        )
-
-
-        # ----------------------------------------------------
-        # LOAD UNIQUE VALUES
-        # ----------------------------------------------------
-
-        filter_values = {}
-
-        for label, column in FILTER_COLUMNS.items():
-
-            filter_values[column] = (
-                get_unique_values(
-                    user_client,
-                    column
-                )
-            )
-
-
-        # ----------------------------------------------------
-        # FIRST ROW
-        # ----------------------------------------------------
-
-        col1, col2, col3 = st.columns(3)
-
-
-        with col1:
-
-            patientid_filter = st.multiselect(
-                "Patient ID",
-                options=filter_values.get(
-                    "patientid",
-                    []
-                ),
-                key="filter_patientid",
-                placeholder="Select Patient ID(s)"
-            )
-
-
-        with col2:
-
-            tsp_filter = st.multiselect(
-                "Township (TSP)",
-                options=filter_values.get(
-                    "tsp",
-                    []
-                ),
-                key="filter_tsp",
-                placeholder="Select Township(s)"
-            )
-
-
-        with col3:
-
-            visitno_filter = st.multiselect(
-                "Visit No",
-                options=filter_values.get(
-                    "visitno",
-                    []
-                ),
-                key="filter_visitno",
-                placeholder="Select Visit No(s)"
-            )
-
-
-        # ----------------------------------------------------
-        # SECOND ROW
-        # ----------------------------------------------------
-
-        col4, col5, col6 = st.columns(3)
-
-
-        with col4:
-
-            srno_filter = st.multiselect(
-                "Serial No",
-                options=filter_values.get(
-                    "srno",
-                    []
-                ),
-                key="filter_srno",
-                placeholder="Select Serial No(s)"
-            )
-
-
-        with col5:
-
-            approach_filter = st.multiselect(
-                "Approach",
-                options=filter_values.get(
-                    "approach",
-                    []
-                ),
-                key="filter_approach",
-                placeholder="Select Approach(es)"
-            )
-
-
-        with col6:
-
-            team_filter = st.multiselect(
-                "Team",
-                options=filter_values.get(
-                    "team",
-                    []
-                ),
-                key="filter_team",
-                placeholder="Select Team(s)"
-            )
-
-
-        # ----------------------------------------------------
-        # THIRD ROW
-        # ----------------------------------------------------
-
-        col7, col8, col9 = st.columns(
-            [1, 1, 1]
-        )
-
-
-        with col7:
-
-            reportingyear_filter = st.multiselect(
-                "Reporting Year",
-                options=filter_values.get(
-                    "reportingyear",
-                    []
-                ),
-                key="filter_reportingyear",
-                placeholder="Select Year(s)"
-            )
-
-
-        # ----------------------------------------------------
-        # DATE RANGE
-        # ----------------------------------------------------
-
-        with col8:
-
-            date_from = st.date_input(
-                "📅 Date From",
-                value=None,
-                key="filter_date_from"
-            )
-
-
-        with col9:
-
-            date_to = st.date_input(
-                "📅 Date To",
-                value=None,
-                key="filter_date_to"
-            )
-
-
-        # ----------------------------------------------------
-        # RESET BUTTON
-        # ----------------------------------------------------
-
-        st.button(
-            "🔄 Reset All Filters",
-            on_click=reset_filters,
-            type="secondary"
-        )
-
-
-    # ========================================================
-    # BUILD SUPABASE QUERY
+    # BUILD QUERY
     # ========================================================
 
     try:
@@ -571,55 +522,9 @@ else:
         )
 
 
-        # ====================================================
-        # GENERAL SEARCH
-        # ====================================================
-
-        sq = search_q.strip()
-
-        if sq:
-
-            search_columns = [
-                "patientid",
-                "name",
-                "tsp",
-                "townshipname",
-                "visitno",
-                "srno",
-                "approach",
-                "team"
-            ]
-
-            search_conditions = []
-
-            for column in search_columns:
-
-                search_conditions.append(
-                    f"{column}.ilike.%{sq}%"
-                )
-
-            query = query.or_(
-                ",".join(
-                    search_conditions
-                )
-            )
-
-
-        # ====================================================
+        # ----------------------------------------------------
         # MULTI-VALUE FILTERS
-        # ====================================================
-        #
-        # Example:
-        #
-        # TSP = ["SDG", "TGG"]
-        #
-        # becomes:
-        #
-        # tsp IN ('SDG','TGG')
-        #
-        # Multiple filters are combined using AND.
-        #
-        # ====================================================
+        # ----------------------------------------------------
 
         if patientid_filter:
 
@@ -677,9 +582,9 @@ else:
             )
 
 
-        # ====================================================
-        # DATE RANGE FILTER
-        # ====================================================
+        # ----------------------------------------------------
+        # DATE FILTER
+        # ----------------------------------------------------
 
         if date_from:
 
@@ -691,21 +596,15 @@ else:
 
         if date_to:
 
-            # Include the entire selected date.
-            #
-            # For PostgreSQL DATE this is fine.
-            # For TIMESTAMP, use next day as exclusive
-            # upper bound instead.
-
             query = query.lte(
                 DATE_COLUMN,
                 str(date_to)
             )
 
 
-        # ====================================================
-        # ORDER + LIMIT
-        # ====================================================
+        # ----------------------------------------------------
+        # ORDER
+        # ----------------------------------------------------
 
         query = (
             query
@@ -741,14 +640,14 @@ else:
 
 
     # ========================================================
-    # DISPLAY FILTER SUMMARY
+    # FILTER SUMMARY
     # ========================================================
 
     active_filters = []
 
     if patientid_filter:
         active_filters.append(
-            f"Patient ID: {len(patientid_filter)}"
+            f"Patient ID ({len(patientid_filter)})"
         )
 
     if tsp_filter:
@@ -763,7 +662,7 @@ else:
 
     if srno_filter:
         active_filters.append(
-            f"SR No: {len(srno_filter)}"
+            f"SR No ({len(srno_filter)})"
         )
 
     if approach_filter:
@@ -791,11 +690,6 @@ else:
             f"To: {date_to}"
         )
 
-    if search_q.strip():
-        active_filters.append(
-            f"Search: {search_q}"
-        )
-
 
     if active_filters:
 
@@ -819,7 +713,7 @@ else:
 
 
     # ========================================================
-    # DATA EDITOR
+    # DISPLAY DATA
     # ========================================================
 
     if df.empty:
@@ -831,14 +725,13 @@ else:
     else:
 
         st.caption(
-            f"Showing **{len(df):,}** matching "
-            "record(s)."
+            f"Showing **{len(df):,}** matching record(s)."
         )
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # COLUMN CONFIG
-        # ----------------------------------------------------
+        # ====================================================
 
         column_configs = {
 
@@ -881,9 +774,9 @@ else:
         ]
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # DATA EDITOR
-        # ----------------------------------------------------
+        # ====================================================
 
         current_grid_key = (
             f"consultation_grid_"
@@ -917,7 +810,7 @@ else:
 
 
         # ====================================================
-        # EDITOR STATE
+        # GET EDITOR CHANGES
         # ====================================================
 
         editor_state = st.session_state.get(
@@ -954,7 +847,7 @@ else:
 
 
         # ====================================================
-        # SYNC TOOLBAR
+        # PENDING CHANGES
         # ====================================================
 
         if (
@@ -963,307 +856,520 @@ else:
         ):
 
             st.warning(
-                f"⚠ Pending changes: "
-                f"**{len(edited_rows)}** update(s), "
-                f"**{len(added_rows)}** creation(s), "
-                f"**{len(deleted_row_indices)}** deletion(s)."
+                f"⚠ **Pending changes:** "
+                f"{len(edited_rows)} update(s), "
+                f"{len(added_rows)} new record(s), "
+                f"{len(deleted_row_indices)} deletion(s)"
             )
 
+
+            # =================================================
+            # SYNC / DISCARD BUTTONS
+            # =================================================
 
             col_sync, col_discard = st.columns(
                 [2, 1]
             )
 
 
+            # -------------------------------------------------
+            # SYNC BUTTON
+            # -------------------------------------------------
+
+            with col_sync:
+
+                sync_clicked = st.button(
+                    "💾 Sync Consultation Changes",
+                    type="primary",
+                    use_container_width=True
+                )
+
+
+            # -------------------------------------------------
+            # DISCARD BUTTON
+            # -------------------------------------------------
+
+            with col_discard:
+
+                discard_clicked = st.button(
+                    "❌ Discard Local Changes",
+                    use_container_width=True
+                )
+
+
+            # =================================================
+            # PENDING CHANGE TABLE
+            # =================================================
+
+            st.markdown(
+                "### 📝 Pending Changes"
+            )
+
+
+            pending_display = []
+
+
+            # -------------------------------------------------
+            # UPDATED ROWS
+            # -------------------------------------------------
+
+            for row_idx, changes in (
+                edited_rows.items()
+            ):
+
+                row_record = df.iloc[
+                    row_idx
+                ]
+
+                row_id = row_record[
+                    PRIMARY_KEY
+                ]
+
+
+                for column, new_value in (
+                    changes.items()
+                ):
+
+                    try:
+
+                        old_value = row_record[
+                            column
+                        ]
+
+                    except Exception:
+
+                        old_value = None
+
+
+                    # Convert timestamps
+                    if pd.isna(old_value):
+                        old_display = ""
+                    else:
+                        old_display = str(
+                            old_value
+                        )
+
+
+                    if pd.isna(new_value):
+                        new_display = ""
+                    else:
+                        new_display = str(
+                            new_value
+                        )
+
+
+                    pending_display.append({
+
+                        "Action": "UPDATE",
+
+                        "Patient ID": str(
+                            row_id
+                        ),
+
+                        "Field": column,
+
+                        "Previous Value":
+                            old_display,
+
+                        "New Value":
+                            new_display
+                    })
+
+
+            # -------------------------------------------------
+            # NEW ROWS
+            # -------------------------------------------------
+
+            for row_number, row in enumerate(
+                added_rows,
+                start=1
+            ):
+
+                row_id = row.get(
+                    PRIMARY_KEY,
+                    ""
+                )
+
+
+                for column, value in (
+                    row.items()
+                ):
+
+                    if column == "updated_at":
+                        continue
+
+
+                    if (
+                        pd.isna(value)
+                        or value == ""
+                    ):
+
+                        value_display = ""
+
+                    else:
+
+                        value_display = str(
+                            value
+                        )
+
+
+                    pending_display.append({
+
+                        "Action": "INSERT",
+
+                        "Patient ID": str(
+                            row_id
+                        ),
+
+                        "Field": column,
+
+                        "Previous Value": "",
+
+                        "New Value":
+                            value_display
+                    })
+
+
+            # -------------------------------------------------
+            # DELETED ROWS
+            # -------------------------------------------------
+
+            for row_idx in (
+                deleted_row_indices
+            ):
+
+                row_record = df.iloc[
+                    row_idx
+                ]
+
+                row_id = row_record[
+                    PRIMARY_KEY
+                ]
+
+
+                pending_display.append({
+
+                    "Action": "DELETE",
+
+                    "Patient ID": str(
+                        row_id
+                    ),
+
+                    "Field": "Entire Record",
+
+                    "Previous Value":
+                        "Existing record",
+
+                    "New Value":
+                        "DELETE"
+                })
+
+
+            # -------------------------------------------------
+            # SHOW TABLE
+            # -------------------------------------------------
+
+            if pending_display:
+
+                pending_df = pd.DataFrame(
+                    pending_display
+                )
+
+
+                st.dataframe(
+                    pending_df,
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+
+            # =================================================
+            # DISCARD
+            # =================================================
+
+            if discard_clicked:
+
+                st.session_state.grid_version += 1
+
+                st.rerun()
+
+
             # =================================================
             # SYNC
             # =================================================
 
-            with col_sync:
+            if sync_clicked:
 
-                if st.button(
-                    "💾 Sync Consultation Changes",
-                    type="primary",
-                    use_container_width=True
-                ):
+                conflict_occurred = False
 
-                    conflict_occurred = False
+                success_count = 0
 
-                    success_count = 0
-
-                    error_messages = []
+                error_messages = []
 
 
-                    # -----------------------------------------
-                    # UPDATE
-                    # -----------------------------------------
+                # =============================================
+                # UPDATE
+                # =============================================
 
-                    if edited_rows:
+                if edited_rows:
 
-                        for row_idx, updated_fields in (
-                            edited_rows.items()
-                        ):
-
-                            row_record = df.iloc[
-                                row_idx
-                            ]
-
-                            row_id = row_record[
-                                PRIMARY_KEY
-                            ]
-
-                            original_updated_at = (
-                                row_record.get(
-                                    "updated_at"
-                                )
-                            )
-
-
-                            cleaned_payload = {}
-
-
-                            for k, v in (
-                                updated_fields.items()
-                            ):
-
-                                if k == "updated_at":
-                                    continue
-
-                                if pd.isna(v):
-
-                                    cleaned_payload[k] = None
-
-                                elif isinstance(
-                                    v,
-                                    pd.Timestamp
-                                ):
-
-                                    cleaned_payload[k] = (
-                                        v.isoformat()
-                                    )
-
-                                else:
-
-                                    cleaned_payload[k] = v
-
-
-                            try:
-
-                                req = (
-                                    user_client
-                                    .table(TABLE_NAME)
-                                    .update(
-                                        cleaned_payload
-                                    )
-                                    .eq(
-                                        PRIMARY_KEY,
-                                        row_id
-                                    )
-                                )
-
-
-                                if pd.notna(
-                                    original_updated_at
-                                ):
-
-                                    req = req.eq(
-                                        "updated_at",
-                                        str(
-                                            original_updated_at
-                                        )
-                                    )
-
-
-                                res = req.execute()
-
-
-                                if not res.data:
-
-                                    conflict_occurred = True
-
-                                    error_messages.append(
-                                        f"❌ Conflict on "
-                                        f"`{row_id}`."
-                                    )
-
-                                else:
-
-                                    success_count += 1
-
-
-                            except Exception as e:
-
-                                error_messages.append(
-                                    f"Update failed for "
-                                    f"`{row_id}`: {e}"
-                                )
-
-
-                    # -----------------------------------------
-                    # INSERT
-                    # -----------------------------------------
-
-                    if (
-                        added_rows
-                        and current_role
-                        in ["editor", "admin"]
+                    for row_idx, updated_fields in (
+                        edited_rows.items()
                     ):
 
-                        new_records = []
+                        row_record = df.iloc[
+                            row_idx
+                        ]
+
+                        row_id = row_record[
+                            PRIMARY_KEY
+                        ]
+
+                        original_updated_at = (
+                            row_record.get(
+                                "updated_at"
+                            )
+                        )
 
 
-                        for row in added_rows:
-
-                            cleaned_row = {}
+                        cleaned_payload = {}
 
 
-                            for k, v in row.items():
+                        for k, v in (
+                            updated_fields.items()
+                        ):
 
-                                if k == "updated_at":
-                                    continue
-
-                                if (
-                                    pd.isna(v)
-                                    or v == ""
-                                ):
-
-                                    cleaned_row[k] = None
-
-                                elif isinstance(
-                                    v,
-                                    pd.Timestamp
-                                ):
-
-                                    cleaned_row[k] = (
-                                        v.isoformat()
-                                    )
-
-                                else:
-
-                                    cleaned_row[k] = v
+                            if k == "updated_at":
+                                continue
 
 
-                            new_records.append(
-                                cleaned_row
+                            if pd.isna(v):
+
+                                cleaned_payload[k] = None
+
+                            elif isinstance(
+                                v,
+                                pd.Timestamp
+                            ):
+
+                                cleaned_payload[k] = (
+                                    v.isoformat()
+                                )
+
+                            else:
+
+                                cleaned_payload[k] = v
+
+
+                        try:
+
+                            req = (
+                                user_client
+                                .table(TABLE_NAME)
+                                .update(
+                                    cleaned_payload
+                                )
+                                .eq(
+                                    PRIMARY_KEY,
+                                    row_id
+                                )
                             )
 
+
+                            # Optimistic concurrency
+                            if pd.notna(
+                                original_updated_at
+                            ):
+
+                                req = req.eq(
+                                    "updated_at",
+                                    str(
+                                        original_updated_at
+                                    )
+                                )
+
+
+                            res = req.execute()
+
+
+                            if not res.data:
+
+                                conflict_occurred = True
+
+                                error_messages.append(
+                                    f"❌ Conflict on "
+                                    f"`{row_id}`."
+                                )
+
+                            else:
+
+                                success_count += 1
+
+
+                        except Exception as e:
+
+                            error_messages.append(
+                                f"Update failed for "
+                                f"`{row_id}`: {e}"
+                            )
+
+
+                # =============================================
+                # INSERT
+                # =============================================
+
+                if (
+                    added_rows
+                    and current_role
+                    in ["editor", "admin"]
+                ):
+
+                    new_records = []
+
+
+                    for row in added_rows:
+
+                        cleaned_row = {}
+
+
+                        for k, v in row.items():
+
+                            if k == "updated_at":
+                                continue
+
+
+                            if (
+                                pd.isna(v)
+                                or v == ""
+                            ):
+
+                                cleaned_row[k] = None
+
+                            elif isinstance(
+                                v,
+                                pd.Timestamp
+                            ):
+
+                                cleaned_row[k] = (
+                                    v.isoformat()
+                                )
+
+                            else:
+
+                                cleaned_row[k] = v
+
+
+                        new_records.append(
+                            cleaned_row
+                        )
+
+
+                    try:
+
+                        (
+                            user_client
+                            .table(TABLE_NAME)
+                            .insert(
+                                new_records
+                            )
+                            .execute()
+                        )
+
+                        success_count += (
+                            len(new_records)
+                        )
+
+
+                    except Exception as e:
+
+                        error_messages.append(
+                            f"Insertion failed: {e}"
+                        )
+
+
+                # =============================================
+                # DELETE
+                # =============================================
+
+                if (
+                    deleted_row_indices
+                    and current_role == "admin"
+                ):
+
+                    deleted_ids = [
+
+                        df.iloc[idx][
+                            PRIMARY_KEY
+                        ]
+
+                        for idx
+                        in deleted_row_indices
+
+                        if pd.notna(
+                            df.iloc[idx][
+                                PRIMARY_KEY
+                            ]
+                        )
+                    ]
+
+
+                    if deleted_ids:
 
                         try:
 
                             (
                                 user_client
                                 .table(TABLE_NAME)
-                                .insert(
-                                    new_records
+                                .delete()
+                                .in_(
+                                    PRIMARY_KEY,
+                                    deleted_ids
                                 )
                                 .execute()
                             )
 
                             success_count += (
-                                len(new_records)
+                                len(deleted_ids)
                             )
+
 
                         except Exception as e:
 
                             error_messages.append(
-                                f"Insertion failed: {e}"
+                                f"Deletion failed: {e}"
                             )
 
 
-                    # -----------------------------------------
-                    # DELETE
-                    # -----------------------------------------
+                # =============================================
+                # SYNC RESULT
+                # =============================================
 
-                    if (
-                        deleted_row_indices
-                        and current_role == "admin"
-                    ):
+                if conflict_occurred:
 
-                        deleted_ids = [
+                    st.error(
+                        "🚨 Concurrency conflict detected."
+                    )
 
-                            df.iloc[idx][PRIMARY_KEY]
-
-                            for idx
-                            in deleted_row_indices
-
-                            if pd.notna(
-                                df.iloc[idx][PRIMARY_KEY]
-                            )
-                        ]
+                    for err in error_messages:
+                        st.write(err)
 
 
-                        if deleted_ids:
+                elif error_messages:
 
-                            try:
+                    st.error(
+                        "Some operations failed."
+                    )
 
-                                (
-                                    user_client
-                                    .table(TABLE_NAME)
-                                    .delete()
-                                    .in_(
-                                        PRIMARY_KEY,
-                                        deleted_ids
-                                    )
-                                    .execute()
-                                )
-
-                                success_count += (
-                                    len(deleted_ids)
-                                )
-
-                            except Exception as e:
-
-                                error_messages.append(
-                                    f"Deletion failed: {e}"
-                                )
+                    for err in error_messages:
+                        st.write(err)
 
 
-                    # -----------------------------------------
-                    # RESULT
-                    # -----------------------------------------
+                else:
 
-                    if conflict_occurred:
-
-                        st.error(
-                            "🚨 Concurrency conflict detected."
-                        )
-
-                        for err in error_messages:
-                            st.write(err)
-
-
-                    elif error_messages:
-
-                        st.error(
-                            "Some operations failed."
-                        )
-
-                        for err in error_messages:
-                            st.write(err)
-
-
-                    else:
-
-                        st.success(
-                            f"🎉 Successfully synced "
-                            f"{success_count} operation(s)."
-                        )
-
-                        st.session_state.grid_version += 1
-
-                        st.rerun()
-
-
-            # =================================================
-            # DISCARD CHANGES
-            # =================================================
-
-            with col_discard:
-
-                if st.button(
-                    "❌ Discard Local Changes",
-                    use_container_width=True
-                ):
+                    st.success(
+                        f"🎉 Successfully synced "
+                        f"{success_count} operation(s)."
+                    )
 
                     st.session_state.grid_version += 1
 
