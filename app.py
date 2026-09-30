@@ -96,8 +96,7 @@ else:
     # Header Bar
     col_hdr, col_logout = st.columns([4, 1])
     with col_hdr:
-        st.title("🏥 Consultation
- Interactive Grid")
+        st.title("🏥 Consultation Data Management")
         st.caption(f"User: **{user_email}** | Role: `:blue[{current_role.upper()}]`")
     with col_logout:
         if st.button("🚪 Logout", use_container_width=True):
