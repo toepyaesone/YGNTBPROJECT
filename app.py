@@ -12,11 +12,11 @@ st.set_page_config(
     layout="wide"
 )
 
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://your-supabase-url.supabase.co")
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "your-anon-key")
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://kocihpxevlowqbguhstf.supabase.co")
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "sb_publishable_1MWEplxpyp0YOGW_TxZiMQ_HbvtHP5Z")
 
 TABLE_NAME = "Consultation"
-PRIMARY_KEY = "srno"  # Adjust if your table primary key is different (e.g., 'id' or 'patientid')
+PRIMARY_KEY = "patientid"  # Adjust if your table primary key is different (e.g., 'id' or 'patientid')
 
 base_supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -29,27 +29,27 @@ if "session" not in st.session_state:
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
 
-def get_user_client() -> Client:
-   """Sets the access token on the client for RLS requests."""
-   if st.session_state.session:
-       # Create a clean client and set the auth session
-       client = create_client(SUPABASE_URL, SUPABASE_KEY)
-       client.postgrest.auth(st.session_state.session.access_token)
-       return client
-   return base_supabase
-
 # def get_user_client() -> Client:
-#     """Returns a user-scoped Supabase client with JWT header using ClientOptions."""
-#     if st.session_state.session:
-#         access_token = st.session_state.session.access_token
-#         return create_client(
-#             SUPABASE_URL,
-#             SUPABASE_KEY,
-#             options=ClientOptions(
-#                 headers={"Authorization": f"Bearer {access_token}"}
-#             )
-#         )
-#     return base_supabase
+#    """Sets the access token on the client for RLS requests."""
+#    if st.session_state.session:
+#        # Create a clean client and set the auth session
+#        client = create_client(SUPABASE_URL, SUPABASE_KEY)
+#        client.postgrest.auth(st.session_state.session.access_token)
+#        return client
+#    return base_supabase
+
+def get_user_client() -> Client:
+    """Returns a user-scoped Supabase client with JWT header using ClientOptions."""
+    if st.session_state.session:
+        access_token = st.session_state.session.access_token
+        return create_client(
+            SUPABASE_URL,
+            SUPABASE_KEY,
+            options=ClientOptions(
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+        )
+    return base_supabase
 
 
 def login_user(email, password):
@@ -149,7 +149,7 @@ else:
         # Full column mapping configuration
         column_configs = {
             # Metadata & Keys
-            PRIMARY_KEY: st.column_config.TextColumn("Sr No", disabled=True),
+            PRIMARY_KEY: st.column_config.TextColumn("Patient ID", disabled=True),
             "updated_at": st.column_config.DatetimeColumn("Last Modified", disabled=True, format="YYYY-MM-DD HH:mm:ss"),
             "date": st.column_config.DateColumn("Date", format="YYYY-MM-DD"),
             "reportingyear": st.column_config.TextColumn("Reporting Year"),
