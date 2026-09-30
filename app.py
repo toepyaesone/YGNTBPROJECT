@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from datetime import timedelta
 from supabase import create_client, Client
 
 
@@ -104,11 +105,14 @@ def login_user(email, password):
         )
 
         if role_result.data:
+
             st.session_state.user_role = (
                 role_result.data[0].get("role")
                 or "viewer"
             )
+
         else:
+
             st.session_state.user_role = "viewer"
 
         return True, "Login successful."
@@ -155,12 +159,12 @@ if not st.session_state.session:
             type="password"
         )
 
-        submitted = st.form_submit_button(
+        login_clicked = st.form_submit_button(
             "Login",
             use_container_width=True
         )
 
-    if submitted:
+    if login_clicked:
 
         success, message = login_user(
             email,
@@ -168,9 +172,12 @@ if not st.session_state.session:
         )
 
         if success:
+
             st.success(message)
             st.rerun()
+
         else:
+
             st.error(message)
 
     st.stop()
@@ -190,6 +197,8 @@ can_edit = user_role in [
     "admin"
 ]
 
+can_add = user_role == "admin"
+
 can_delete = user_role == "admin"
 
 
@@ -197,34 +206,35 @@ can_delete = user_role == "admin"
 # SIDEBAR
 # ============================================================
 
-st.sidebar.title("User")
+st.sidebar.title("🩺 Consultation")
 
 st.sidebar.write(
-    f"Role: **{user_role}**"
+    f"**Role:** {user_role}"
 )
 
 if st.sidebar.button(
     "Logout",
     use_container_width=True
 ):
+
     logout_user()
 
 
 # ============================================================
-# FILTER RESET
+# RESET FILTERS
 # ============================================================
 
 def reset_filters():
 
-    # Create a completely new filter widget namespace
+    # Create a completely new set of filter widgets
     st.session_state.filter_version += 1
 
-    # Create a completely new data editor namespace
+    # Also recreate the data editor
     st.session_state.grid_version += 1
 
 
 # ============================================================
-# UNIQUE VALUES
+# UNIQUE FILTER VALUES
 # ============================================================
 
 @st.cache_data(ttl=60)
@@ -253,8 +263,8 @@ def get_unique_values(column):
                     values.append(value)
 
         return sorted(
-            list(set(values)),
-            key=str.lower
+            set(values),
+            key=lambda x: x.lower()
         )
 
     except Exception:
@@ -263,13 +273,14 @@ def get_unique_values(column):
 
 
 # ============================================================
-# FILTERS
+# FILTER SECTION
 # ============================================================
-
-filter_version = st.session_state.filter_version
 
 st.subheader("🔎 Filters")
 
+filter_version = (
+    st.session_state.filter_version
+)
 
 col1, col2, col3 = st.columns(3)
 
@@ -356,7 +367,7 @@ st.button(
 
 
 # ============================================================
-# BUILD QUERY
+# BUILD SUPABASE QUERY
 # ============================================================
 
 client = get_user_client()
@@ -368,7 +379,11 @@ query = (
 )
 
 
-filters = {
+# ------------------------------------------------------------
+# MULTI-VALUE FILTERS
+# ------------------------------------------------------------
+
+selected_filters = {
     "patientid": patientid_filter,
     "tsp": tsp_filter,
     "visitno": visitno_filter,
@@ -379,7 +394,7 @@ filters = {
 }
 
 
-for column, values in filters.items():
+for column, values in selected_filters.items():
 
     if values:
 
@@ -403,14 +418,18 @@ if date_from:
 
 if date_to:
 
-    query = query.lte(
+    # Include the entire selected To date.
+    # This also works when the database column is timestamp.
+    next_day = date_to + timedelta(days=1)
+
+    query = query.lt(
         DATE_COLUMN,
-        date_to.isoformat()
+        next_day.isoformat()
     )
 
 
 # ============================================================
-# GET DATA
+# LOAD DATA
 # ============================================================
 
 try:
@@ -430,7 +449,7 @@ try:
 except Exception as e:
 
     st.error(
-        f"Error loading data: {e}"
+        f"Error loading Consultation data: {e}"
     )
 
     st.stop()
@@ -457,8 +476,8 @@ if df.empty:
 # ============================================================
 
 st.caption(
-    f"Showing {len(df):,} record(s). "
-    f"Maximum displayed: {MAX_ROWS:,}"
+    f"Showing {len(df):,} record(s) "
+    f"of maximum {MAX_ROWS:,}."
 )
 
 
@@ -468,26 +487,34 @@ st.caption(
 
 st.subheader("📋 Consultation Data")
 
-
 editor_key = (
     f"consultation_grid_"
     f"{st.session_state.grid_version}"
 )
 
 
-# Columns that cannot be edited
+# ------------------------------------------------------------
+# DISABLED COLUMNS
+# ------------------------------------------------------------
+
 disabled_columns = []
 
 if PRIMARY_KEY in df.columns:
+
     disabled_columns.append(
         PRIMARY_KEY
     )
 
 if "updated_at" in df.columns:
+
     disabled_columns.append(
         "updated_at"
     )
 
+
+# ------------------------------------------------------------
+# DATA EDITOR
+# ------------------------------------------------------------
 
 edited_df = st.data_editor(
 
@@ -499,9 +526,11 @@ edited_df = st.data_editor(
 
     hide_index=True,
 
+    # Only ADMIN can add/delete rows.
+    # Editor can edit existing rows only.
     num_rows=(
         "dynamic"
-        if can_edit
+        if can_add
         else "fixed"
     ),
 
@@ -510,7 +539,7 @@ edited_df = st.data_editor(
 
 
 # ============================================================
-# GET ACTUAL EDITOR STATE
+# GET DATA EDITOR STATE
 # ============================================================
 
 editor_state = st.session_state.get(
@@ -519,22 +548,67 @@ editor_state = st.session_state.get(
 )
 
 
+# Streamlit:
+# edited_rows  -> dict
+# added_rows   -> list
+# deleted_rows -> list
+
 edited_rows = editor_state.get(
     "edited_rows",
     {}
 )
 
-
 added_rows = editor_state.get(
     "added_rows",
-    {}
+    []
 )
-
 
 deleted_rows = editor_state.get(
     "deleted_rows",
     []
 )
+
+
+# ============================================================
+# SAFETY NORMALIZATION
+# ============================================================
+
+if not isinstance(
+    edited_rows,
+    dict
+):
+
+    edited_rows = {}
+
+
+if not isinstance(
+    added_rows,
+    list
+):
+
+    # Compatibility with versions returning dict
+    if isinstance(
+        added_rows,
+        dict
+    ):
+
+        added_rows = list(
+            added_rows.values()
+        )
+
+    else:
+
+        added_rows = []
+
+
+if not isinstance(
+    deleted_rows,
+    list
+):
+
+    deleted_rows = list(
+        deleted_rows
+    )
 
 
 # ============================================================
@@ -545,7 +619,7 @@ pending_rows = []
 
 
 # ------------------------------------------------------------
-# UPDATED
+# UPDATED ROWS
 # ------------------------------------------------------------
 
 for row_index, changes in edited_rows.items():
@@ -573,31 +647,40 @@ for row_index, changes in edited_rows.items():
         )
     }
 
+
     for column, value in changes.items():
 
         row[column] = value
+
 
     pending_rows.append(row)
 
 
 # ------------------------------------------------------------
-# INSERTED
+# NEW ROWS
 # ------------------------------------------------------------
 
-for row_index, row_data in added_rows.items():
+for row_index, row_data in enumerate(
+    added_rows
+):
 
     row = {
         "Action": "INSERT",
         "Row": row_index
     }
 
-    row.update(row_data)
+    if isinstance(
+        row_data,
+        dict
+    ):
+
+        row.update(row_data)
 
     pending_rows.append(row)
 
 
 # ------------------------------------------------------------
-# DELETED
+# DELETED ROWS
 # ------------------------------------------------------------
 
 for row_index in deleted_rows:
@@ -668,38 +751,49 @@ col_sync, col_discard = st.columns(2)
 with col_sync:
 
     sync_clicked = st.button(
+
         "💾 Sync Changes",
+
         type="primary",
+
         disabled=(
             not pending_rows
             or not can_edit
         ),
+
         use_container_width=True
+
     )
 
 
 with col_discard:
 
     discard_clicked = st.button(
+
         "↩️ Discard Changes",
+
         disabled=not pending_rows,
+
         use_container_width=True
+
     )
 
 
 # ============================================================
-# DISCARD
+# DISCARD CHANGES
 # ============================================================
 
 if discard_clicked:
 
+    # Recreate the data editor.
+    # This removes all unsaved changes.
     st.session_state.grid_version += 1
 
     st.rerun()
 
 
 # ============================================================
-# SYNC
+# SYNC CHANGES
 # ============================================================
 
 if sync_clicked:
@@ -732,25 +826,35 @@ if sync_clicked:
 
 
             if pd.isna(patient_id):
+
+                errors.append(
+                    f"UPDATE row {row_index}: "
+                    f"missing {PRIMARY_KEY}"
+                )
+
                 continue
 
+
+            # -----------------------------------------------
+            # Build UPDATE data
+            # -----------------------------------------------
 
             update_data = {}
 
 
             for column, value in changes.items():
 
-                # Never update primary key
+                # Never change primary key
                 if column == PRIMARY_KEY:
                     continue
 
-                # updated_at should normally be handled
-                # by Supabase trigger/default
+                # Database should manage updated_at
                 if column == "updated_at":
                     continue
 
 
                 if pd.isna(value):
+
                     value = None
 
 
@@ -761,7 +865,11 @@ if sync_clicked:
                 continue
 
 
-            query = (
+            # -----------------------------------------------
+            # UPDATE
+            # -----------------------------------------------
+
+            result = (
                 sync_client
                 .table(TABLE_NAME)
                 .update(update_data)
@@ -769,28 +877,8 @@ if sync_clicked:
                     PRIMARY_KEY,
                     patient_id
                 )
+                .execute()
             )
-
-
-            # ------------------------------------------------
-            # OPTIMISTIC CONCURRENCY
-            # ------------------------------------------------
-
-            if "updated_at" in df.columns:
-
-                old_updated_at = original.get(
-                    "updated_at"
-                )
-
-                if pd.notna(old_updated_at):
-
-                    query = query.eq(
-                        "updated_at",
-                        str(old_updated_at)
-                    )
-
-
-            result = query.execute()
 
 
             if result.data:
@@ -816,68 +904,101 @@ if sync_clicked:
     # INSERT NEW RECORDS
     # ========================================================
 
-    if can_edit:
+    if added_rows:
 
-        for row_index, row_data in added_rows.items():
+        if not can_add:
 
-            try:
+            errors.append(
+                "INSERT failed: "
+                "Only admin users can add records."
+            )
 
-                insert_data = {}
+        else:
 
+            for row_index, row_data in enumerate(
+                added_rows
+            ):
 
-                for column, value in row_data.items():
+                try:
 
-                    if column == "updated_at":
+                    if not isinstance(
+                        row_data,
+                        dict
+                    ):
                         continue
 
 
-                    if pd.isna(value):
-                        value = None
+                    insert_data = {}
 
 
-                    insert_data[column] = value
+                    for column, value in row_data.items():
+
+                        # Skip auto-generated fields
+                        if column == "updated_at":
+                            continue
 
 
-                # Skip completely empty rows
-                if not any(
-                    value not in [
-                        None,
-                        ""
-                    ]
-                    for value in insert_data.values()
-                ):
-                    continue
+                        if pd.isna(value):
+
+                            value = None
 
 
-                result = (
-                    sync_client
-                    .table(TABLE_NAME)
-                    .insert(insert_data)
-                    .execute()
-                )
+                        insert_data[column] = value
 
 
-                if result.data:
+                    # ---------------------------------------
+                    # Check empty row
+                    # ---------------------------------------
 
-                    success_count += 1
+                    has_data = any(
 
-                else:
+                        value not in [
+                            None,
+                            ""
+                        ]
 
-                    errors.append(
-                        f"INSERT failed: "
-                        f"row {row_index}"
+                        for value in insert_data.values()
+
                     )
 
 
-            except Exception as e:
+                    if not has_data:
+                        continue
 
-                errors.append(
-                    f"INSERT row {row_index}: {e}"
-                )
+
+                    # ---------------------------------------
+                    # INSERT
+                    # ---------------------------------------
+
+                    result = (
+                        sync_client
+                        .table(TABLE_NAME)
+                        .insert(insert_data)
+                        .execute()
+                    )
+
+
+                    if result.data:
+
+                        success_count += 1
+
+                    else:
+
+                        errors.append(
+                            f"INSERT failed: "
+                            f"row {row_index}"
+                        )
+
+
+                except Exception as e:
+
+                    errors.append(
+                        f"INSERT row {row_index}: {e}"
+                    )
 
 
     # ========================================================
-    # DELETE RECORDS
+    # DELETE
     # ========================================================
 
     if deleted_rows:
@@ -909,10 +1030,20 @@ if sync_clicked:
 
 
                     if pd.isna(patient_id):
+
+                        errors.append(
+                            f"DELETE row {row_index}: "
+                            f"missing {PRIMARY_KEY}"
+                        )
+
                         continue
 
 
-                    query = (
+                    # ---------------------------------------
+                    # DELETE
+                    # ---------------------------------------
+
+                    result = (
                         sync_client
                         .table(TABLE_NAME)
                         .delete()
@@ -920,28 +1051,8 @@ if sync_clicked:
                             PRIMARY_KEY,
                             patient_id
                         )
+                        .execute()
                     )
-
-
-                    # ------------------------------------------------
-                    # OPTIMISTIC CONCURRENCY
-                    # ------------------------------------------------
-
-                    if "updated_at" in df.columns:
-
-                        old_updated_at = original.get(
-                            "updated_at"
-                        )
-
-                        if pd.notna(old_updated_at):
-
-                            query = query.eq(
-                                "updated_at",
-                                str(old_updated_at)
-                            )
-
-
-                    result = query.execute()
 
 
                     if result.data:
@@ -964,7 +1075,7 @@ if sync_clicked:
 
 
     # ========================================================
-    # SYNC RESULT
+    # SHOW SYNC RESULT
     # ========================================================
 
     if success_count > 0:
@@ -987,7 +1098,7 @@ if sync_clicked:
 
 
     # ========================================================
-    # REFRESH DATA EDITOR
+    # REFRESH
     # ========================================================
 
     st.session_state.grid_version += 1
