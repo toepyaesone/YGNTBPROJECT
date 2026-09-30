@@ -29,19 +29,27 @@ if "session" not in st.session_state:
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
 
-
 def get_user_client() -> Client:
-    """Returns a user-scoped Supabase client with JWT header using ClientOptions."""
-    if st.session_state.session:
-        access_token = st.session_state.session.access_token
-        return create_client(
-            SUPABASE_URL,
-            SUPABASE_KEY,
-            options=ClientOptions(
-                headers={"Authorization": f"Bearer {access_token}"}
-            )
-        )
-    return base_supabase
+   """Sets the access token on the client for RLS requests."""
+   if st.session_state.session:
+       # Create a clean client and set the auth session
+       client = create_client(SUPABASE_URL, SUPABASE_KEY)
+       client.postgrest.auth(st.session_state.session.access_token)
+       return client
+   return base_supabase
+
+# def get_user_client() -> Client:
+#     """Returns a user-scoped Supabase client with JWT header using ClientOptions."""
+#     if st.session_state.session:
+#         access_token = st.session_state.session.access_token
+#         return create_client(
+#             SUPABASE_URL,
+#             SUPABASE_KEY,
+#             options=ClientOptions(
+#                 headers={"Authorization": f"Bearer {access_token}"}
+#             )
+#         )
+#     return base_supabase
 
 
 def login_user(email, password):
