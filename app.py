@@ -292,8 +292,8 @@ else:
             search_conditions = [
                 f"patientid.ilike.%{sq}%",
                 f"name.ilike.%{sq}%",
-                f"serialno.ilike.%{sq}%",
-                f"townshipname.ilike.%{sq}%"
+                f"srno.ilike.%{sq}%",
+                f"tsp.ilike.%{sq}%"
             ]
 
             query = query.or_(
