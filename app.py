@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
-from supabase.lib.client_options import ClientOptions
 
 # ==========================================
 # 1. PAGE CONFIGURATION
@@ -12,13 +11,18 @@ st.set_page_config(
     layout="wide"
 )
 
+# Use st.secrets safely with fallback to empty strings
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://kocihpxevlowqbguhstf.supabase.co")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "sb_publishable_1MWEplxpyp0YOGW_TxZiMQ_HbvtHP5Z")
 
 TABLE_NAME = "Consultation"
-PRIMARY_KEY = "patientid"  # Adjust if your table primary key is different (e.g., 'id' or 'patientid')
+PRIMARY_KEY = "patientid"
 
 base_supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Initialize editor version key for reset/discard functionality
+if "grid_version" not in st.session_state:
+    st.session_state.grid_version = 0
 
 
 # ==========================================
@@ -30,26 +34,12 @@ if "user_role" not in st.session_state:
     st.session_state.user_role = None
 
 def get_user_client() -> Client:
-   """Sets the access token on the client for RLS requests."""
-   if st.session_state.session:
-       # Create a clean client and set the auth session
-       client = create_client(SUPABASE_URL, SUPABASE_KEY)
-       client.postgrest.auth(st.session_state.session.access_token)
-       return client
-   return base_supabase
-
-# def get_user_client() -> Client:
-#     """Returns a user-scoped Supabase client with JWT header using ClientOptions."""
-#     if st.session_state.session:
-#         access_token = st.session_state.session.access_token
-#         return create_client(
-#             SUPABASE_URL,
-#             SUPABASE_KEY,
-#             options=ClientOptions(
-#                 headers={"Authorization": f"Bearer {access_token}"}
-#             )
-#         )
-#     return base_supabase
+    """Sets the access token on the client for RLS requests."""
+    if st.session_state.session:
+        client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        client.postgrest.auth(st.session_state.session.access_token)
+        return client
+    return base_supabase
 
 
 def login_user(email, password):
@@ -97,7 +87,7 @@ else:
     # ==========================================
     user_client = get_user_client()
     user_email = st.session_state.session.user.email
-    current_role = st.session_state.user_role
+    current_role = st.session_state.user_role or "viewer"
 
     # Header Bar
     col_hdr, col_logout = st.columns([4, 1])
@@ -125,11 +115,15 @@ else:
         query = user_client.table(TABLE_NAME).select("*")
         
         if year_filter.strip():
+            # Cast integer/bigint year columns to string search if necessary
             query = query.eq("reportingyear", year_filter.strip())
             
         if search_q.strip():
+            sq = search_q.strip()
+            # FIX: Explicitly cast bigint/numeric columns (patientid, srno) to text (::text)
+            # so Postgres ilike works without type mismatch errors.
             query = query.or_(
-                f"patientid.ilike.%{search_q}%,name.ilike.%{search_q}%,srno.ilike.%{search_q}%,townshipname.ilike.%{search_q}%"
+                f"patientid::text.ilike.%{sq}%,name.ilike.%{sq}%,srno::text.ilike.%{sq}%,townshipname.ilike.%{sq}%"
             )
             
         response = query.order(PRIMARY_KEY, desc=True).limit(page_size).execute()
@@ -144,143 +138,47 @@ else:
     if df.empty:
         st.info("No matching records found in `Consultation` table.")
     else:
-        st.caption("Double-click any cell to edit. Scroll horizontally to view all 74 columns.")
+        st.caption("Double-click any cell to edit. Scroll horizontally to view all columns.")
 
-        # Full column mapping configuration
+        # Primary column config schema
         column_configs = {
-            # Metadata & Keys
             PRIMARY_KEY: st.column_config.TextColumn("Patient ID", disabled=True),
             "updated_at": st.column_config.DatetimeColumn("Last Modified", disabled=True, format="YYYY-MM-DD HH:mm:ss"),
-
-            # # Administrative & Location
-            # "team": st.column_config.TextColumn("Team"),
-            # "tsp": st.column_config.TextColumn("TSP"),
-            # "townshipname": st.column_config.TextColumn("Township Name"),
-            # "ptstsp": st.column_config.TextColumn("Patient TSP"),
-            # "wardvillage": st.column_config.TextColumn("Ward / Village"),
-            # "wardcode": st.column_config.TextColumn("Ward Code"),
-            # "approach": st.column_config.TextColumn("Approach"),
-            # "visitno": st.column_config.NumberColumn("Visit No", min_value=1),
-            # "origin": st.column_config.TextColumn("Origin"),
-            # "location1": st.column_config.TextColumn("Location 1"),
-
-            # # Demographics
-            # "patientid": st.column_config.TextColumn("Patient ID", required=True),
-            # "name": st.column_config.TextColumn("Name", required=True),
-            # "age": st.column_config.NumberColumn("Age", min_value=0, max_value=120),
-            # "sex": st.column_config.SelectboxColumn("Sex", options=["Male", "Female", "Other"]),
-            # "address": st.column_config.TextColumn("Address", width="large"),
-            # "phoneno": st.column_config.TextColumn("Phone No"),
-
-            # # Referral Information
-            # "volunteerreferral": st.column_config.TextColumn("Volunteer Referral"),
-            # "referralfor": st.column_config.TextColumn("Referral For"),
-            # "volunteername": st.column_config.TextColumn("Volunteer Name"),
-            # "organization": st.column_config.TextColumn("Organization"),
-
-            # # Clinical Symptoms (Screening)
-            # "cough": st.column_config.SelectboxColumn("Cough", options=["Yes", "No", "Y", "N"]),
-            # "fever": st.column_config.SelectboxColumn("Fever", options=["Yes", "No", "Y", "N"]),
-            # "weightloss": st.column_config.SelectboxColumn("Weight Loss", options=["Yes", "No", "Y", "N"]),
-            # "nightsweat": st.column_config.SelectboxColumn("Night Sweat", options=["Yes", "No", "Y", "N"]),
-            # "haemoptysis": st.column_config.SelectboxColumn("Haemoptysis", options=["Yes", "No", "Y", "N"]),
-            # "chestpain": st.column_config.SelectboxColumn("Chest Pain", options=["Yes", "No", "Y", "N"]),
-            # "fatigue": st.column_config.SelectboxColumn("Fatigue", options=["Yes", "No", "Y", "N"]),
-            # "neckglands": st.column_config.SelectboxColumn("Neck Glands", options=["Yes", "No", "Y", "N"]),
-
-            # # Risk Factors & History
-            # "tbcontact": st.column_config.SelectboxColumn("TB Contact", options=["Yes", "No", "Y", "N"]),
-            # "mdrtbcontact": st.column_config.SelectboxColumn("MDR-TB Contact", options=["Yes", "No", "Y", "N"]),
-            # "tbtreatmenthistory": st.column_config.TextColumn("TB Tx History"),
-            # "covid19history": st.column_config.TextColumn("COVID-19 History"),
-            # "diabetesdm": st.column_config.SelectboxColumn("Diabetes (DM)", options=["Yes", "No", "Y", "N"]),
-            # "smoking": st.column_config.SelectboxColumn("Smoking", options=["Yes", "No", "Y", "N"]),
-            # "reasonforexamination": st.column_config.TextColumn("Reason For Exam"),
-
-            # # Co-morbidities & Indications
-            # "typeofpatient": st.column_config.TextColumn("Type of Patient"),
-            # "publichealthcare1": st.column_config.TextColumn("Public Healthcare 1"),
-            # "typeofpatient1": st.column_config.TextColumn("Type of Patient 1"),
-            # "dm1": st.column_config.TextColumn("DM 1"),
-            # "ht1": st.column_config.TextColumn("HT 1"),
-            # "dmht1": st.column_config.TextColumn("DM/HT 1"),
-            # "rtiavi1": st.column_config.TextColumn("RTI/AVI 1"),
-            # "generalweakness1": st.column_config.TextColumn("General Weakness 1"),
-            # "other1": st.column_config.TextColumn("Other 1"),
-
-            # # Diagnostic Investigations (CXR / Sputum / GenExpert)
-            # "cxrr": st.column_config.TextColumn("CXR Requested"),
-            # "cxrresult": st.column_config.TextColumn("CXR Result"),
-            # "cxrothers": st.column_config.TextColumn("CXR Others"),
-            # "cxrresultfinal": st.column_config.TextColumn("CXR Result Final"),
-            # "xray2ndreading1": st.column_config.TextColumn("X-Ray 2nd Reading"),
-            # "xrayremark1": st.column_config.TextColumn("X-Ray Remark"),
-            # "xrayeqa1": st.column_config.TextColumn("X-Ray EQA"),
-            # "sputum_request": st.column_config.TextColumn("Sputum Request"),
-            # "micror": st.column_config.TextColumn("Micro R"),
-            # "sputummicroscopyresult": st.column_config.TextColumn("Sputum Microscopy Result"),
-            # "genexpertrequested": st.column_config.TextColumn("GeneXpert Requested"),
-            # "genexpertresult": st.column_config.TextColumn("GeneXpert Result"),
-            # "culturedstresult": st.column_config.TextColumn("Culture DST Result"),
-
-            # # Case Management & Treatment
-            # "bactstatus": st.column_config.TextColumn("Bact Status"),
-            # "tbcase": st.column_config.TextColumn("TB Case"),
-            # "treatmentreferral": st.column_config.TextColumn("Tx Referral"),
-            # "treatmentregimen": st.column_config.TextColumn("Tx Regimen"),
-            # "placeforreferral": st.column_config.TextColumn("Place for Referral"),
-            # "ref1": st.column_config.TextColumn("Ref 1"),
-            # "treatmentoutcome": st.column_config.TextColumn("Tx Outcome"),
-            # "townshiptbregnumber1": st.column_config.TextColumn("Township TB Reg No"),
-            # "epi": st.column_config.TextColumn("EPI"),
-            # "tb": st.column_config.TextColumn("TB"),
-
-            # # Disability Screening Indicators
-            # "seeing": st.column_config.TextColumn("Seeing"),
-            # "hearing": st.column_config.TextColumn("Hearing"),
-            # "walking": st.column_config.TextColumn("Walking"),
-            # "cognition": st.column_config.TextColumn("Cognition"),
-            # "selfcare": st.column_config.TextColumn("Self-care"),
-            # "communication": st.column_config.TextColumn("Communication"),
-            # "disability": st.column_config.TextColumn("Disability"),
-            # "remark": st.column_config.TextColumn("Remark", width="large")
         }
-        # -------------------------------------------------------------------------
-        # 1. Normalize DataFrame Columns (Strip whitespace & preserve exact case)
-        # -------------------------------------------------------------------------
-        if not df.empty:
-            df.columns = df.columns.str.strip()
 
-            # 2. Filter column_configs so ONLY existing columns are passed
-            # This prevents StreamlitAPIException if a column is missing or named differently
-            valid_column_configs = {
-                col: config 
-                for col, config in column_configs.items() 
-                if col in df.columns
-            }
+        # Normalize column names & filter configs safely
+        df.columns = df.columns.str.strip()
+        valid_column_configs = {
+            col: config for col, config in column_configs.items() if col in df.columns
+        }
 
-            # 3. Safely pass filtered column_configs to st.data_editor
-            edited_df = st.data_editor(
-                df,
-                key="consultation_grid",
-                disabled=is_read_only or [col for col in [PRIMARY_KEY, "updated_at"] if col in df.columns],
-                num_rows="dynamic" if can_add_or_delete else "fixed",
-                use_container_width=True,
-                hide_index=True,
-                column_config=valid_column_configs  # <-- Use dynamically filtered dict
-            )
+        # Dynamic session key to allow clearing local editor edits on Discard
+        current_grid_key = f"consultation_grid_{st.session_state.grid_version}"
 
-        # Delta capture
-        editor_state = st.session_state.get("consultation_grid", {})
+        edited_df = st.data_editor(
+            df,
+            key=current_grid_key,
+            disabled=is_read_only or [col for col in [PRIMARY_KEY, "updated_at"] if col in df.columns],
+            num_rows="dynamic" if can_add_or_delete else "fixed",
+            use_container_width=True,
+            hide_index=True,
+            column_config=valid_column_configs
+        )
+
+        # Delta capture from editor state
+        editor_state = st.session_state.get(current_grid_key, {})
         edited_rows = editor_state.get("edited_rows", {})
         added_rows = editor_state.get("added_rows", [])
         deleted_row_indices = editor_state.get("deleted_rows", [])
 
         total_changes = len(edited_rows) + len(added_rows) + len(deleted_row_indices)
 
-        # Sync Action Panel
+        # Sync & Discard Action Panel
         if not is_read_only and total_changes > 0:
-            st.warning(f"⚠ Pending changes: **{len(edited_rows)}** update(s), **{len(added_rows)}** creation(s), **{len(deleted_row_indices)}** deletion(s).")
+            st.warning(
+                f"⚠ Pending changes: **{len(edited_rows)}** update(s), "
+                f"**{len(added_rows)}** creation(s), **{len(deleted_row_indices)}** deletion(s)."
+            )
 
             col_sync, col_discard = st.columns([2, 1])
 
@@ -290,14 +188,13 @@ else:
                     success_count = 0
                     error_messages = []
 
-                    # 1. UPDATES (EXCLUDING updated_at FROM PAYLOAD)
+                    # 1. UPDATES
                     if edited_rows:
                         for row_idx, updated_fields in edited_rows.items():
                             row_record = df.iloc[row_idx]
                             row_id = row_record[PRIMARY_KEY]
                             original_updated_at = row_record.get("updated_at")
 
-                            # EXCLUDE updated_at to prevent PostgreSQL record mismatch
                             cleaned_payload = {}
                             for k, v in updated_fields.items():
                                 if k == "updated_at":
@@ -376,8 +273,13 @@ else:
                     else:
                         st.success(f"🎉 Successfully synced {success_count} operation(s)!")
                         st.cache_data.clear()
+                        # Increment grid version to reset editor state after sync
+                        st.session_state.grid_version += 1
                         st.rerun()
 
             with col_discard:
                 if st.button("❌ Discard Local Changes", use_container_width=True):
+                    # FIX: Incrementing grid_version forces Streamlit to rebuild st.data_editor
+                    # with a fresh key, clearing un-synced edits immediately.
+                    st.session_state.grid_version += 1
                     st.rerun()
