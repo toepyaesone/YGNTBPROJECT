@@ -151,9 +151,6 @@ else:
             # Metadata & Keys
             PRIMARY_KEY: st.column_config.TextColumn("Patient ID", disabled=True),
             "updated_at": st.column_config.DatetimeColumn("Last Modified", disabled=True, format="YYYY-MM-DD HH:mm:ss"),
-            "date": st.column_config.DateColumn("Date", format="YYYY-MM-DD"),
-            "reportingyear": st.column_config.TextColumn("Reporting Year"),
-            "month (diagnosis)": st.column_config.TextColumn("Month (Diagnosis)"),
 
             # # Administrative & Location
             # "team": st.column_config.TextColumn("Team"),
