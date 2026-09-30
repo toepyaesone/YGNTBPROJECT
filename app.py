@@ -2,14 +2,21 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 
-# ==========================================
-# 1. PAGE CONFIGURATION & INITIALIZATION
-# ==========================================
+
+# ============================================================
+# 1. PAGE CONFIGURATION
+# ============================================================
+
 st.set_page_config(
     page_title="Consultation Register",
     page_icon="📋",
     layout="wide"
 )
+
+
+# ============================================================
+# 2. SUPABASE CONFIGURATION
+# ============================================================
 
 SUPABASE_URL = st.secrets.get(
     "SUPABASE_URL",
@@ -24,14 +31,17 @@ SUPABASE_KEY = st.secrets.get(
 TABLE_NAME = "Consultation"
 PRIMARY_KEY = "patientid"
 
+
 base_supabase: Client = create_client(
     SUPABASE_URL,
     SUPABASE_KEY
 )
 
-# ==========================================
-# SESSION STATE
-# ==========================================
+
+# ============================================================
+# 3. SESSION STATE
+# ============================================================
+
 if "grid_version" not in st.session_state:
     st.session_state.grid_version = 0
 
@@ -41,20 +51,55 @@ if "session" not in st.session_state:
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
 
+if "filter_reset" not in st.session_state:
+    st.session_state.filter_reset = False
 
-# ==========================================
-# 2. AUTHENTICATION
-# ==========================================
+
+# ============================================================
+# 4. FILTER CONFIGURATION
+# ============================================================
+#
+# IMPORTANT:
+# Change the database column names below if your Supabase
+# Consultation table uses different names.
+#
+# Example:
+# "tsp"        -> township column
+# "visitno"    -> visit number
+# "srno"       -> serial number
+# "approach"   -> approach
+# "team"       -> team
+# "date"       -> consultation/date field
+#
+# ============================================================
+
+FILTER_COLUMNS = {
+    "Patient ID": "patientid",
+    "Township (TSP)": "tsp",
+    "Visit No": "visitno",
+    "Serial No": "srno",
+    "Approach": "approach",
+    "Team": "team",
+    "Reporting Year": "reportingyear",
+}
+
+DATE_COLUMN = "date"
+
+
+# ============================================================
+# 5. AUTHENTICATION CLIENT
+# ============================================================
+
 def get_user_client() -> Client:
-    """
-    Return Supabase client using the logged-in user's
-    access token so that RLS policies are respected.
-    """
 
     if (
         st.session_state.session
-        and hasattr(st.session_state.session, "access_token")
+        and hasattr(
+            st.session_state.session,
+            "access_token"
+        )
     ):
+
         client = create_client(
             SUPABASE_URL,
             SUPABASE_KEY
@@ -69,9 +114,14 @@ def get_user_client() -> Client:
     return base_supabase
 
 
+# ============================================================
+# 6. LOGIN
+# ============================================================
+
 def login_user(email, password):
 
     try:
+
         res = base_supabase.auth.sign_in_with_password({
             "email": email,
             "password": password
@@ -91,19 +141,34 @@ def login_user(email, password):
         )
 
         if role_res.data:
-            st.session_state.user_role = role_res.data.get(
-                "role",
-                "viewer"
+
+            st.session_state.user_role = (
+                role_res.data.get(
+                    "role",
+                    "viewer"
+                )
             )
+
         else:
+
             st.session_state.user_role = "viewer"
 
-        st.success("Authenticated successfully!")
+        st.success(
+            "Authenticated successfully!"
+        )
+
         st.rerun()
 
     except Exception as e:
-        st.error(f"Login failed: {e}")
 
+        st.error(
+            f"Login failed: {e}"
+        )
+
+
+# ============================================================
+# 7. LOGOUT
+# ============================================================
 
 def logout_user():
 
@@ -114,17 +179,110 @@ def logout_user():
 
     st.session_state.session = None
     st.session_state.user_role = None
-    st.session_state.grid_version += 1
 
     st.rerun()
 
 
-# ==========================================
-# 3. LOGIN INTERFACE
-# ==========================================
+# ============================================================
+# 8. RESET FILTER CALLBACK
+# ============================================================
+#
+# IMPORTANT:
+# This is the key fix for the "Reset Filter" problem.
+#
+# Streamlit widget values are cleared BEFORE the widgets
+# are recreated.
+#
+# ============================================================
+
+def reset_filters():
+
+    filter_keys = [
+        "filter_patientid",
+        "filter_tsp",
+        "filter_visitno",
+        "filter_srno",
+        "filter_approach",
+        "filter_team",
+        "filter_reportingyear",
+        "filter_date_from",
+        "filter_date_to",
+        "search_input",
+    ]
+
+    for key in filter_keys:
+
+        if key in st.session_state:
+            del st.session_state[key]
+
+    # Force fresh data editor
+    st.session_state.grid_version += 1
+
+
+# ============================================================
+# 9. GET UNIQUE FILTER VALUES
+# ============================================================
+
+def get_unique_values(
+    user_client,
+    column_name
+):
+
+    try:
+
+        response = (
+            user_client
+            .table(TABLE_NAME)
+            .select(column_name)
+            .execute()
+        )
+
+        if not response.data:
+
+            return []
+
+        values = []
+
+        for row in response.data:
+
+            value = row.get(
+                column_name
+            )
+
+            if value is not None:
+
+                if pd.isna(value):
+                    continue
+
+                value = str(value).strip()
+
+                if value != "":
+                    values.append(value)
+
+        return sorted(
+            list(set(values)),
+            key=lambda x: x.lower()
+        )
+
+    except Exception as e:
+
+        st.warning(
+            f"Unable to load values for "
+            f"`{column_name}`: {e}"
+        )
+
+        return []
+
+
+# ============================================================
+# 10. LOGIN INTERFACE
+# ============================================================
+
 if not st.session_state.session:
 
-    st.title("🔐 Login - Consultation Register")
+    st.title(
+        "🔐 Login - Consultation Register"
+    )
 
     with st.form("login_form"):
 
@@ -145,31 +303,45 @@ if not st.session_state.session:
         if submit_btn:
 
             if email and password:
-                login_user(email, password)
+
+                login_user(
+                    email,
+                    password
+                )
 
             else:
+
                 st.warning(
-                    "Please enter both email and password."
+                    "Please enter both email "
+                    "and password."
                 )
 
 
-# ==========================================
-# 4. MAIN DASHBOARD
-# ==========================================
+# ============================================================
+# 11. MAIN DASHBOARD
+# ============================================================
+
 else:
 
     user_client = get_user_client()
 
-    user_email = st.session_state.session.user.email
-
-    current_role = (
-        st.session_state.user_role or "viewer"
+    user_email = (
+        st.session_state.session.user.email
     )
 
-    # ======================================
+    current_role = (
+        st.session_state.user_role
+        or "viewer"
+    )
+
+
+    # ========================================================
     # HEADER
-    # ======================================
-    col_hdr, col_logout = st.columns([4, 1])
+    # ========================================================
+
+    col_hdr, col_logout = st.columns(
+        [5, 1]
+    )
 
     with col_hdr:
 
@@ -188,66 +360,208 @@ else:
             "🚪 Logout",
             use_container_width=True
         ):
+
             logout_user()
+
 
     st.divider()
 
 
-    # ======================================
-    # SEARCH / FILTER BAR
-    # ======================================
+    # ========================================================
+    # FILTER SECTION
+    # ========================================================
 
-    f_col1, f_col2, f_col3, f_col4 = st.columns(
-        [3, 1.3, 1.3, 1]
-    )
+    with st.expander(
+        "🔎 Search & Filters",
+        expanded=True
+    ):
 
-    with f_col1:
+        # ----------------------------------------------------
+        # GENERAL SEARCH
+        # ----------------------------------------------------
 
         search_q = st.text_input(
-            "🔍 Search",
+            "🔍 General Search",
             placeholder=(
-                "Patient ID, Name, Serial No, Township..."
+                "Search Patient ID, name, township, "
+                "serial number..."
             ),
             key="search_input"
         )
 
-    with f_col2:
 
-        year_filter = st.text_input(
-            "📅 Reporting Year",
-            placeholder="e.g. 2025",
-            key="year_input"
+        st.markdown(
+            "**Filter by specific fields**"
         )
 
-    with f_col3:
 
-        page_size = st.selectbox(
-            "Rows per page",
-            options=[10, 25, 50, 100],
-            index=1,
-            key="page_size"
+        # ----------------------------------------------------
+        # LOAD UNIQUE VALUES
+        # ----------------------------------------------------
+
+        filter_values = {}
+
+        for label, column in FILTER_COLUMNS.items():
+
+            filter_values[column] = (
+                get_unique_values(
+                    user_client,
+                    column
+                )
+            )
+
+
+        # ----------------------------------------------------
+        # FIRST ROW
+        # ----------------------------------------------------
+
+        col1, col2, col3 = st.columns(3)
+
+
+        with col1:
+
+            patientid_filter = st.multiselect(
+                "Patient ID",
+                options=filter_values.get(
+                    "patientid",
+                    []
+                ),
+                key="filter_patientid",
+                placeholder="Select Patient ID(s)"
+            )
+
+
+        with col2:
+
+            tsp_filter = st.multiselect(
+                "Township (TSP)",
+                options=filter_values.get(
+                    "tsp",
+                    []
+                ),
+                key="filter_tsp",
+                placeholder="Select Township(s)"
+            )
+
+
+        with col3:
+
+            visitno_filter = st.multiselect(
+                "Visit No",
+                options=filter_values.get(
+                    "visitno",
+                    []
+                ),
+                key="filter_visitno",
+                placeholder="Select Visit No(s)"
+            )
+
+
+        # ----------------------------------------------------
+        # SECOND ROW
+        # ----------------------------------------------------
+
+        col4, col5, col6 = st.columns(3)
+
+
+        with col4:
+
+            srno_filter = st.multiselect(
+                "Serial No",
+                options=filter_values.get(
+                    "srno",
+                    []
+                ),
+                key="filter_srno",
+                placeholder="Select Serial No(s)"
+            )
+
+
+        with col5:
+
+            approach_filter = st.multiselect(
+                "Approach",
+                options=filter_values.get(
+                    "approach",
+                    []
+                ),
+                key="filter_approach",
+                placeholder="Select Approach(es)"
+            )
+
+
+        with col6:
+
+            team_filter = st.multiselect(
+                "Team",
+                options=filter_values.get(
+                    "team",
+                    []
+                ),
+                key="filter_team",
+                placeholder="Select Team(s)"
+            )
+
+
+        # ----------------------------------------------------
+        # THIRD ROW
+        # ----------------------------------------------------
+
+        col7, col8, col9 = st.columns(
+            [1, 1, 1]
         )
 
-    with f_col4:
 
-        st.write("")
+        with col7:
 
-        if st.button(
-            "🔄 Reset Filters",
-            use_container_width=True
-        ):
-
-            st.session_state.search_input = ""
-            st.session_state.year_input = ""
-
-            st.session_state.grid_version += 1
-
-            st.rerun()
+            reportingyear_filter = st.multiselect(
+                "Reporting Year",
+                options=filter_values.get(
+                    "reportingyear",
+                    []
+                ),
+                key="filter_reportingyear",
+                placeholder="Select Year(s)"
+            )
 
 
-    # ======================================
+        # ----------------------------------------------------
+        # DATE RANGE
+        # ----------------------------------------------------
+
+        with col8:
+
+            date_from = st.date_input(
+                "📅 Date From",
+                value=None,
+                key="filter_date_from"
+            )
+
+
+        with col9:
+
+            date_to = st.date_input(
+                "📅 Date To",
+                value=None,
+                key="filter_date_to"
+            )
+
+
+        # ----------------------------------------------------
+        # RESET BUTTON
+        # ----------------------------------------------------
+
+        st.button(
+            "🔄 Reset All Filters",
+            on_click=reset_filters,
+            type="secondary"
+        )
+
+
+    # ========================================================
     # BUILD SUPABASE QUERY
-    # ======================================
+    # ========================================================
+
     try:
 
         query = (
@@ -257,67 +571,154 @@ else:
         )
 
 
-        # ----------------------------------
-        # REPORTING YEAR FILTER
-        # ----------------------------------
-        yf = year_filter.strip()
-
-        if yf:
-
-            # If reportingyear is a TEXT/VARCHAR column
-            #
-            # This supports:
-            # 2025 -> 2025
-            # 202 -> 2020, 2021, 2022...
-            #
-            query = query.ilike(
-                "reportingyear",
-                f"%{yf}%"
-            )
-
-
-        # ----------------------------------
+        # ====================================================
         # GENERAL SEARCH
-        # ----------------------------------
+        # ====================================================
+
         sq = search_q.strip()
 
         if sq:
 
-            # IMPORTANT:
-            #
-            # These are actual database columns.
-            # Change/add column names here if your
-            # Consultation table uses different names.
-            #
-            search_conditions = [
-                f"patientid.ilike.%{sq}%",
-                f"name.ilike.%{sq}%",
-                f"srno.ilike.%{sq}%",
-                f"tsp.ilike.%{sq}%"
+            search_columns = [
+                "patientid",
+                "name",
+                "tsp",
+                "townshipname",
+                "visitno",
+                "srno",
+                "approach",
+                "team"
             ]
 
+            search_conditions = []
+
+            for column in search_columns:
+
+                search_conditions.append(
+                    f"{column}.ilike.%{sq}%"
+                )
+
             query = query.or_(
-                ",".join(search_conditions)
+                ",".join(
+                    search_conditions
+                )
             )
 
 
-        # ----------------------------------
+        # ====================================================
+        # MULTI-VALUE FILTERS
+        # ====================================================
+        #
+        # Example:
+        #
+        # TSP = ["SDG", "TGG"]
+        #
+        # becomes:
+        #
+        # tsp IN ('SDG','TGG')
+        #
+        # Multiple filters are combined using AND.
+        #
+        # ====================================================
+
+        if patientid_filter:
+
+            query = query.in_(
+                "patientid",
+                patientid_filter
+            )
+
+
+        if tsp_filter:
+
+            query = query.in_(
+                "tsp",
+                tsp_filter
+            )
+
+
+        if visitno_filter:
+
+            query = query.in_(
+                "visitno",
+                visitno_filter
+            )
+
+
+        if srno_filter:
+
+            query = query.in_(
+                "srno",
+                srno_filter
+            )
+
+
+        if approach_filter:
+
+            query = query.in_(
+                "approach",
+                approach_filter
+            )
+
+
+        if team_filter:
+
+            query = query.in_(
+                "team",
+                team_filter
+            )
+
+
+        if reportingyear_filter:
+
+            query = query.in_(
+                "reportingyear",
+                reportingyear_filter
+            )
+
+
+        # ====================================================
+        # DATE RANGE FILTER
+        # ====================================================
+
+        if date_from:
+
+            query = query.gte(
+                DATE_COLUMN,
+                str(date_from)
+            )
+
+
+        if date_to:
+
+            # Include the entire selected date.
+            #
+            # For PostgreSQL DATE this is fine.
+            # For TIMESTAMP, use next day as exclusive
+            # upper bound instead.
+
+            query = query.lte(
+                DATE_COLUMN,
+                str(date_to)
+            )
+
+
+        # ====================================================
         # ORDER + LIMIT
-        # ----------------------------------
+        # ====================================================
+
         query = (
             query
             .order(
                 PRIMARY_KEY,
                 desc=True
             )
-            .limit(page_size)
+            .limit(1000)
         )
 
 
-        # ----------------------------------
-        # EXECUTE
-        # ----------------------------------
         response = query.execute()
+
 
         if response.data:
 
@@ -333,15 +734,81 @@ else:
     except Exception as e:
 
         st.error(
-            f"Error querying `{TABLE_NAME}` table:\n\n{e}"
+            f"Error querying `{TABLE_NAME}`:\n\n{e}"
         )
 
         df = pd.DataFrame()
 
 
-    # ======================================
+    # ========================================================
+    # DISPLAY FILTER SUMMARY
+    # ========================================================
+
+    active_filters = []
+
+    if patientid_filter:
+        active_filters.append(
+            f"Patient ID: {len(patientid_filter)}"
+        )
+
+    if tsp_filter:
+        active_filters.append(
+            f"TSP: {', '.join(tsp_filter)}"
+        )
+
+    if visitno_filter:
+        active_filters.append(
+            f"Visit No: {', '.join(visitno_filter)}"
+        )
+
+    if srno_filter:
+        active_filters.append(
+            f"SR No: {len(srno_filter)}"
+        )
+
+    if approach_filter:
+        active_filters.append(
+            f"Approach: {', '.join(approach_filter)}"
+        )
+
+    if team_filter:
+        active_filters.append(
+            f"Team: {', '.join(team_filter)}"
+        )
+
+    if reportingyear_filter:
+        active_filters.append(
+            f"Year: {', '.join(reportingyear_filter)}"
+        )
+
+    if date_from:
+        active_filters.append(
+            f"From: {date_from}"
+        )
+
+    if date_to:
+        active_filters.append(
+            f"To: {date_to}"
+        )
+
+    if search_q.strip():
+        active_filters.append(
+            f"Search: {search_q}"
+        )
+
+
+    if active_filters:
+
+        st.info(
+            "🔎 **Active filters:** "
+            + " | ".join(active_filters)
+        )
+
+
+    # ========================================================
     # ROLE PERMISSIONS
-    # ======================================
+    # ========================================================
+
     is_read_only = (
         current_role == "viewer"
     )
@@ -351,25 +818,28 @@ else:
     )
 
 
-    # ======================================
-    # DISPLAY DATA
-    # ======================================
+    # ========================================================
+    # DATA EDITOR
+    # ========================================================
+
     if df.empty:
 
-        st.info(
+        st.warning(
             "No matching records found."
         )
 
     else:
 
         st.caption(
-            f"Showing **{len(df):,}** record(s). "
-            "Double-click a cell to edit."
+            f"Showing **{len(df):,}** matching "
+            "record(s)."
         )
 
-        # ----------------------------------
-        # COLUMN CONFIGURATION
-        # ----------------------------------
+
+        # ----------------------------------------------------
+        # COLUMN CONFIG
+        # ----------------------------------------------------
+
         column_configs = {
 
             PRIMARY_KEY:
@@ -387,21 +857,20 @@ else:
         }
 
 
-        # ----------------------------------
-        # CLEAN COLUMN NAMES
-        # ----------------------------------
-        df.columns = df.columns.str.strip()
+        df.columns = (
+            df.columns
+            .str.strip()
+        )
+
 
         valid_configs = {
             col: cfg
-            for col, cfg in column_configs.items()
+            for col, cfg
+            in column_configs.items()
             if col in df.columns
         }
 
 
-        # ----------------------------------
-        # DISABLED COLUMNS
-        # ----------------------------------
         disabled_columns = [
             col
             for col in [
@@ -412,13 +881,15 @@ else:
         ]
 
 
-        # ----------------------------------
+        # ----------------------------------------------------
         # DATA EDITOR
-        # ----------------------------------
+        # ----------------------------------------------------
+
         current_grid_key = (
             f"consultation_grid_"
             f"{st.session_state.grid_version}"
         )
+
 
         edited_df = st.data_editor(
 
@@ -445,27 +916,33 @@ else:
         )
 
 
-        # ==================================
+        # ====================================================
         # EDITOR STATE
-        # ==================================
+        # ====================================================
+
         editor_state = st.session_state.get(
             current_grid_key,
             {}
         )
+
 
         edited_rows = editor_state.get(
             "edited_rows",
             {}
         )
 
+
         added_rows = editor_state.get(
             "added_rows",
             []
         )
 
-        deleted_row_indices = editor_state.get(
-            "deleted_rows",
-            []
+
+        deleted_row_indices = (
+            editor_state.get(
+                "deleted_rows",
+                []
+            )
         )
 
 
@@ -476,9 +953,10 @@ else:
         )
 
 
-        # ==================================
-        # SYNC / DISCARD
-        # ==================================
+        # ====================================================
+        # SYNC TOOLBAR
+        # ====================================================
+
         if (
             not is_read_only
             and total_changes > 0
@@ -491,14 +969,16 @@ else:
                 f"**{len(deleted_row_indices)}** deletion(s)."
             )
 
+
             col_sync, col_discard = st.columns(
                 [2, 1]
             )
 
 
-            # ==================================
+            # =================================================
             # SYNC
-            # ==================================
+            # =================================================
+
             with col_sync:
 
                 if st.button(
@@ -514,12 +994,15 @@ else:
                     error_messages = []
 
 
-                    # ==========================
-                    # UPDATE RECORDS
-                    # ==========================
+                    # -----------------------------------------
+                    # UPDATE
+                    # -----------------------------------------
+
                     if edited_rows:
 
-                        for row_idx, updated_fields in edited_rows.items():
+                        for row_idx, updated_fields in (
+                            edited_rows.items()
+                        ):
 
                             row_record = df.iloc[
                                 row_idx
@@ -535,10 +1018,13 @@ else:
                                 )
                             )
 
+
                             cleaned_payload = {}
 
 
-                            for k, v in updated_fields.items():
+                            for k, v in (
+                                updated_fields.items()
+                            ):
 
                                 if k == "updated_at":
                                     continue
@@ -576,8 +1062,6 @@ else:
                                 )
 
 
-                                # Optimistic
-                                # concurrency check
                                 if pd.notna(
                                     original_updated_at
                                 ):
@@ -599,8 +1083,7 @@ else:
 
                                     error_messages.append(
                                         f"❌ Conflict on "
-                                        f"Record `{row_id}`: "
-                                        f"modified by another user."
+                                        f"`{row_id}`."
                                     )
 
                                 else:
@@ -611,14 +1094,15 @@ else:
                             except Exception as e:
 
                                 error_messages.append(
-                                    f"Failed updating "
+                                    f"Update failed for "
                                     f"`{row_id}`: {e}"
                                 )
 
 
-                    # ==========================
-                    # INSERT RECORDS
-                    # ==========================
+                    # -----------------------------------------
+                    # INSERT
+                    # -----------------------------------------
+
                     if (
                         added_rows
                         and current_role
@@ -669,7 +1153,9 @@ else:
                             (
                                 user_client
                                 .table(TABLE_NAME)
-                                .insert(new_records)
+                                .insert(
+                                    new_records
+                                )
                                 .execute()
                             )
 
@@ -684,9 +1170,10 @@ else:
                             )
 
 
-                    # ==========================
-                    # DELETE RECORDS
-                    # ==========================
+                    # -----------------------------------------
+                    # DELETE
+                    # -----------------------------------------
+
                     if (
                         deleted_row_indices
                         and current_role == "admin"
@@ -731,39 +1218,35 @@ else:
                                 )
 
 
-                    # ==========================
-                    # RESULTS
-                    # ==========================
+                    # -----------------------------------------
+                    # RESULT
+                    # -----------------------------------------
+
                     if conflict_occurred:
 
                         st.error(
-                            "🚨 Concurrency Conflict Detected!"
+                            "🚨 Concurrency conflict detected."
                         )
 
                         for err in error_messages:
-                            st.markdown(err)
-
-                        st.info(
-                            "Please refresh the data "
-                            "before making further changes."
-                        )
+                            st.write(err)
 
 
                     elif error_messages:
 
                         st.error(
-                            "Errors encountered during sync:"
+                            "Some operations failed."
                         )
 
                         for err in error_messages:
-                            st.write(f"- {err}")
+                            st.write(err)
 
 
                     else:
 
                         st.success(
                             f"🎉 Successfully synced "
-                            f"{success_count} operation(s)!"
+                            f"{success_count} operation(s)."
                         )
 
                         st.session_state.grid_version += 1
@@ -771,9 +1254,10 @@ else:
                         st.rerun()
 
 
-            # ==================================
-            # DISCARD
-            # ==================================
+            # =================================================
+            # DISCARD CHANGES
+            # =================================================
+
             with col_discard:
 
                 if st.button(
