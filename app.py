@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
 from supabase import create_client, Client
 
 
 # ============================================================
-# CONFIG
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
@@ -14,12 +13,18 @@ st.set_page_config(
     layout="wide"
 )
 
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
+
+# ============================================================
+# CONFIG
+# ============================================================
+
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 TABLE_NAME = "Consultation"
 PRIMARY_KEY = "patientid"
 DATE_COLUMN = "date"
+
 MAX_ROWS = 1000
 
 
@@ -34,7 +39,6 @@ base_supabase: Client = create_client(
 
 
 def get_user_client():
-    """Return Supabase client using current user's access token."""
 
     session = st.session_state.get("session")
 
@@ -46,10 +50,9 @@ def get_user_client():
         SUPABASE_KEY
     )
 
-    try:
-        client.postgrest.auth(session.access_token)
-    except Exception:
-        pass
+    client.postgrest.auth(
+        session.access_token
+    )
 
     return client
 
@@ -58,17 +61,17 @@ def get_user_client():
 # SESSION STATE
 # ============================================================
 
-defaults = {
-    "session": None,
-    "user_role": None,
-    "grid_version": 0,
-    "filter_version": 0,
-    "last_sync_message": None
-}
+if "session" not in st.session_state:
+    st.session_state.session = None
 
-for key, value in defaults.items():
-    if key not in st.session_state:
-        st.session_state[key] = value
+if "user_role" not in st.session_state:
+    st.session_state.user_role = None
+
+if "grid_version" not in st.session_state:
+    st.session_state.grid_version = 0
+
+if "filter_version" not in st.session_state:
+    st.session_state.filter_version = 0
 
 
 # ============================================================
@@ -78,31 +81,32 @@ for key, value in defaults.items():
 def login_user(email, password):
 
     try:
+
         response = base_supabase.auth.sign_in_with_password({
             "email": email,
             "password": password
         })
 
-        session = response.session
-
-        if not session:
+        if not response.session:
             return False, "Login failed."
 
-        st.session_state.session = session
+        st.session_state.session = response.session
 
-        # Get user role
-        role_response = (
+        user_id = response.session.user.id
+
+        role_result = (
             base_supabase
             .table("user_roles")
             .select("role")
-            .eq("user_id", session.user.id)
+            .eq("user_id", user_id)
             .limit(1)
             .execute()
         )
 
-        if role_response.data:
+        if role_result.data:
             st.session_state.user_role = (
-                role_response.data[0].get("role") or "viewer"
+                role_result.data[0].get("role")
+                or "viewer"
             )
         else:
             st.session_state.user_role = "viewer"
@@ -110,8 +114,13 @@ def login_user(email, password):
         return True, "Login successful."
 
     except Exception as e:
+
         return False, str(e)
 
+
+# ============================================================
+# LOGOUT
+# ============================================================
 
 def logout_user():
 
@@ -122,7 +131,10 @@ def logout_user():
 
     st.session_state.session = None
     st.session_state.user_role = None
+
     st.session_state.grid_version += 1
+    st.session_state.filter_version += 1
+
     st.rerun()
 
 
@@ -143,12 +155,12 @@ if not st.session_state.session:
             type="password"
         )
 
-        login = st.form_submit_button(
+        submitted = st.form_submit_button(
             "Login",
             use_container_width=True
         )
 
-    if login:
+    if submitted:
 
         success, message = login_user(
             email,
@@ -165,14 +177,30 @@ if not st.session_state.session:
 
 
 # ============================================================
-# USER INFORMATION
+# USER ROLE
 # ============================================================
 
-session = st.session_state.session
-user_role = st.session_state.user_role or "viewer"
+user_role = (
+    st.session_state.user_role
+    or "viewer"
+)
 
-st.sidebar.success(
-    f"Logged in\n\nRole: **{user_role}**"
+can_edit = user_role in [
+    "editor",
+    "admin"
+]
+
+can_delete = user_role == "admin"
+
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+st.sidebar.title("User")
+
+st.sidebar.write(
+    f"Role: **{user_role}**"
 )
 
 if st.sidebar.button(
@@ -182,60 +210,21 @@ if st.sidebar.button(
     logout_user()
 
 
-can_edit = user_role in ["editor", "admin"]
-can_delete = user_role == "admin"
-
-
 # ============================================================
-# FILTER DEFINITIONS
-# ============================================================
-
-FILTERS = {
-    "Patient ID": "patientid",
-    "TSP": "tsp",
-    "Visit No": "visitno",
-    "SR No": "srno",
-    "Approach": "approach",
-    "Team": "team",
-    "Reporting Year": "reportingyear"
-}
-
-
-# ============================================================
-# RESET FILTERS
+# FILTER RESET
 # ============================================================
 
 def reset_filters():
 
-    # Change widget namespace.
-    # This forces Streamlit to create completely new widgets.
+    # Create a completely new filter widget namespace
     st.session_state.filter_version += 1
 
-    # Remove old widget values.
-    old_keys = [
-        "f_patientid",
-        "f_tsp",
-        "f_visitno",
-        "f_srno",
-        "f_approach",
-        "f_team",
-        "f_year",
-        "f_date_from",
-        "f_date_to"
-    ]
-
-    for key in old_keys:
-        st.session_state.pop(key, None)
-
-    # Also refresh the data grid.
+    # Create a completely new data editor namespace
     st.session_state.grid_version += 1
 
 
-filter_version = st.session_state.filter_version
-
-
 # ============================================================
-# UNIQUE FILTER VALUES
+# UNIQUE VALUES
 # ============================================================
 
 @st.cache_data(ttl=60)
@@ -243,7 +232,7 @@ def get_unique_values(column):
 
     try:
 
-        response = (
+        result = (
             base_supabase
             .table(TABLE_NAME)
             .select(column)
@@ -252,97 +241,117 @@ def get_unique_values(column):
 
         values = []
 
-        for row in response.data or []:
+        for row in result.data or []:
 
             value = row.get(column)
 
-            if value is not None and str(value).strip() != "":
-                values.append(str(value))
+            if value is not None:
+
+                value = str(value).strip()
+
+                if value:
+                    values.append(value)
 
         return sorted(
             list(set(values)),
-            key=lambda x: x.lower()
+            key=str.lower
         )
 
     except Exception:
+
         return []
 
 
 # ============================================================
-# FILTER UI
+# FILTERS
 # ============================================================
+
+filter_version = st.session_state.filter_version
 
 st.subheader("🔎 Filters")
 
+
 col1, col2, col3 = st.columns(3)
+
+
+# ------------------------------------------------------------
+# COLUMN 1
+# ------------------------------------------------------------
 
 with col1:
 
-    patientid_values = st.multiselect(
+    patientid_filter = st.multiselect(
         "Patient ID",
         get_unique_values("patientid"),
-        key=f"f_patientid_{filter_version}"
+        key=f"patientid_filter_{filter_version}"
     )
 
-    tsp_values = st.multiselect(
+    tsp_filter = st.multiselect(
         "TSP",
         get_unique_values("tsp"),
-        key=f"f_tsp_{filter_version}"
+        key=f"tsp_filter_{filter_version}"
     )
 
-    visitno_values = st.multiselect(
+    visitno_filter = st.multiselect(
         "Visit No",
         get_unique_values("visitno"),
-        key=f"f_visitno_{filter_version}"
+        key=f"visitno_filter_{filter_version}"
     )
 
+
+# ------------------------------------------------------------
+# COLUMN 2
+# ------------------------------------------------------------
 
 with col2:
 
-    srno_values = st.multiselect(
+    srno_filter = st.multiselect(
         "SR No",
         get_unique_values("srno"),
-        key=f"f_srno_{filter_version}"
+        key=f"srno_filter_{filter_version}"
     )
 
-    approach_values = st.multiselect(
+    approach_filter = st.multiselect(
         "Approach",
         get_unique_values("approach"),
-        key=f"f_approach_{filter_version}"
+        key=f"approach_filter_{filter_version}"
     )
 
-    team_values = st.multiselect(
+    team_filter = st.multiselect(
         "Team",
         get_unique_values("team"),
-        key=f"f_team_{filter_version}"
+        key=f"team_filter_{filter_version}"
     )
 
+
+# ------------------------------------------------------------
+# COLUMN 3
+# ------------------------------------------------------------
 
 with col3:
 
-    year_values = st.multiselect(
+    year_filter = st.multiselect(
         "Reporting Year",
         get_unique_values("reportingyear"),
-        key=f"f_year_{filter_version}"
+        key=f"year_filter_{filter_version}"
     )
 
     date_from = st.date_input(
         "Date From",
         value=None,
-        key=f"f_date_from_{filter_version}"
+        key=f"date_from_{filter_version}"
     )
 
     date_to = st.date_input(
         "Date To",
         value=None,
-        key=f"f_date_to_{filter_version}"
+        key=f"date_to_{filter_version}"
     )
 
 
 st.button(
     "🔄 Reset Filters",
-    on_click=reset_filters,
-    use_container_width=False
+    on_click=reset_filters
 )
 
 
@@ -359,28 +368,30 @@ query = (
 )
 
 
-# Multiple-value filters
-
-selected_filters = {
-    "patientid": patientid_values,
-    "tsp": tsp_values,
-    "visitno": visitno_values,
-    "srno": srno_values,
-    "approach": approach_values,
-    "team": team_values,
-    "reportingyear": year_values
+filters = {
+    "patientid": patientid_filter,
+    "tsp": tsp_filter,
+    "visitno": visitno_filter,
+    "srno": srno_filter,
+    "approach": approach_filter,
+    "team": team_filter,
+    "reportingyear": year_filter
 }
 
-for column, values in selected_filters.items():
+
+for column, values in filters.items():
 
     if values:
+
         query = query.in_(
             column,
             values
         )
 
 
-# Date filters
+# ============================================================
+# DATE FILTER
+# ============================================================
 
 if date_from:
 
@@ -404,19 +415,22 @@ if date_to:
 
 try:
 
-    response = (
+    result = (
         query
-        .order(PRIMARY_KEY, desc=True)
+        .order(
+            PRIMARY_KEY,
+            desc=True
+        )
         .limit(MAX_ROWS)
         .execute()
     )
 
-    data = response.data or []
+    data = result.data or []
 
 except Exception as e:
 
     st.error(
-        f"Error loading Consultation data: {e}"
+        f"Error loading data: {e}"
     )
 
     st.stop()
@@ -425,20 +439,26 @@ except Exception as e:
 df = pd.DataFrame(data)
 
 
+# ============================================================
+# NO DATA
+# ============================================================
+
 if df.empty:
 
-    st.info("No records found.")
+    st.info(
+        "No records found for the selected filters."
+    )
 
     st.stop()
 
 
 # ============================================================
-# DISPLAY INFORMATION
+# DATA INFORMATION
 # ============================================================
 
 st.caption(
-    f"Showing {len(df):,} records "
-    f"(maximum {MAX_ROWS:,})."
+    f"Showing {len(df):,} record(s). "
+    f"Maximum displayed: {MAX_ROWS:,}"
 )
 
 
@@ -449,29 +469,71 @@ st.caption(
 st.subheader("📋 Consultation Data")
 
 
-# Columns that should not be manually edited
+editor_key = (
+    f"consultation_grid_"
+    f"{st.session_state.grid_version}"
+)
+
+
+# Columns that cannot be edited
 disabled_columns = []
 
 if PRIMARY_KEY in df.columns:
-    disabled_columns.append(PRIMARY_KEY)
+    disabled_columns.append(
+        PRIMARY_KEY
+    )
 
 if "updated_at" in df.columns:
-    disabled_columns.append("updated_at")
+    disabled_columns.append(
+        "updated_at"
+    )
 
 
-editor_state = st.data_editor(
+edited_df = st.data_editor(
+
     df,
-    key=f"consultation_grid_{st.session_state.grid_version}",
+
+    key=editor_key,
+
     use_container_width=True,
+
     hide_index=True,
-    num_rows="dynamic" if can_edit and can_delete else "fixed",
-    disabled=disabled_columns if not can_edit else disabled_columns,
-    column_config={
-        "updated_at": st.column_config.DatetimeColumn(
-            "Updated At",
-            disabled=True
-        )
-    }
+
+    num_rows=(
+        "dynamic"
+        if can_edit
+        else "fixed"
+    ),
+
+    disabled=disabled_columns
+)
+
+
+# ============================================================
+# GET ACTUAL EDITOR STATE
+# ============================================================
+
+editor_state = st.session_state.get(
+    editor_key,
+    {}
+)
+
+
+edited_rows = editor_state.get(
+    "edited_rows",
+    {}
+)
+
+
+added_rows = editor_state.get(
+    "added_rows",
+    {}
+)
+
+
+deleted_rows = editor_state.get(
+    "deleted_rows",
+    []
 )
 
 
@@ -479,41 +541,48 @@ editor_state = st.data_editor(
 # PENDING CHANGES
 # ============================================================
 
-edited_rows = editor_state.get("edited_rows", {})
-added_rows = editor_state.get("added_rows", {})
-deleted_rows = editor_state.get("deleted_rows", [])
-
-
 pending_rows = []
 
 
-# -----------------------------
-# Edited rows
-# -----------------------------
+# ------------------------------------------------------------
+# UPDATED
+# ------------------------------------------------------------
 
 for row_index, changes in edited_rows.items():
 
+    try:
+
+        row_index = int(row_index)
+
+    except Exception:
+
+        continue
+
+
     if row_index >= len(df):
         continue
+
 
     original = df.iloc[row_index]
 
     row = {
         "Action": "UPDATE",
-        "Row": row_index
+        "Row": row_index,
+        PRIMARY_KEY: original.get(
+            PRIMARY_KEY
+        )
     }
 
-    row[PRIMARY_KEY] = original.get(PRIMARY_KEY)
-
     for column, value in changes.items():
+
         row[column] = value
 
     pending_rows.append(row)
 
 
-# -----------------------------
-# Added rows
-# -----------------------------
+# ------------------------------------------------------------
+# INSERTED
+# ------------------------------------------------------------
 
 for row_index, row_data in added_rows.items():
 
@@ -527,31 +596,49 @@ for row_index, row_data in added_rows.items():
     pending_rows.append(row)
 
 
-# -----------------------------
-# Deleted rows
-# -----------------------------
+# ------------------------------------------------------------
+# DELETED
+# ------------------------------------------------------------
 
 for row_index in deleted_rows:
 
-    if row_index < len(df):
+    try:
 
-        original = df.iloc[row_index]
+        row_index = int(row_index)
 
-        pending_rows.append({
-            "Action": "DELETE",
-            "Row": row_index,
-            PRIMARY_KEY: original.get(PRIMARY_KEY)
-        })
+    except Exception:
+
+        continue
+
+
+    if row_index >= len(df):
+        continue
+
+
+    original = df.iloc[row_index]
+
+    pending_rows.append({
+
+        "Action": "DELETE",
+
+        "Row": row_index,
+
+        PRIMARY_KEY: original.get(
+            PRIMARY_KEY
+        )
+
+    })
 
 
 # ============================================================
-# SHOW PENDING CHANGES
+# PENDING CHANGES DISPLAY
 # ============================================================
 
 if pending_rows:
 
     st.subheader(
-        f"📝 Pending Changes ({len(pending_rows)})"
+        f"📝 Pending Changes "
+        f"({len(pending_rows)})"
     )
 
     pending_df = pd.DataFrame(
@@ -566,53 +653,53 @@ if pending_rows:
 
 else:
 
-    st.caption("No pending changes.")
+    st.caption(
+        "No pending changes."
+    )
 
 
 # ============================================================
-# SYNC / DISCARD
+# BUTTONS
 # ============================================================
 
 col_sync, col_discard = st.columns(2)
+
+
+with col_sync:
+
+    sync_clicked = st.button(
+        "💾 Sync Changes",
+        type="primary",
+        disabled=(
+            not pending_rows
+            or not can_edit
+        ),
+        use_container_width=True
+    )
+
+
+with col_discard:
+
+    discard_clicked = st.button(
+        "↩️ Discard Changes",
+        disabled=not pending_rows,
+        use_container_width=True
+    )
 
 
 # ============================================================
 # DISCARD
 # ============================================================
 
-with col_discard:
+if discard_clicked:
 
-    if st.button(
-        "↩️ Discard Changes",
-        disabled=not pending_rows,
-        use_container_width=True
-    ):
+    st.session_state.grid_version += 1
 
-        st.session_state.grid_version += 1
-
-        st.success(
-            "Changes discarded."
-        )
-
-        st.rerun()
+    st.rerun()
 
 
 # ============================================================
 # SYNC
-# ============================================================
-
-with col_sync:
-
-    sync_clicked = st.button(
-        "💾 Sync Changes",
-        disabled=not pending_rows or not can_edit,
-        type="primary",
-        use_container_width=True
-    )
-
-
-# ============================================================
-# SYNC PROCESS
 # ============================================================
 
 if sync_clicked:
@@ -623,16 +710,19 @@ if sync_clicked:
     errors = []
 
 
-    # --------------------------------------------------------
-    # UPDATE
-    # --------------------------------------------------------
+    # ========================================================
+    # UPDATE EXISTING RECORDS
+    # ========================================================
 
     for row_index, changes in edited_rows.items():
 
         try:
 
+            row_index = int(row_index)
+
             if row_index >= len(df):
                 continue
+
 
             original = df.iloc[row_index]
 
@@ -640,23 +730,29 @@ if sync_clicked:
                 PRIMARY_KEY
             )
 
+
             if pd.isna(patient_id):
                 continue
 
 
-            # Only update changed columns
             update_data = {}
+
 
             for column, value in changes.items():
 
-                if column in [
-                    PRIMARY_KEY,
-                    "updated_at"
-                ]:
+                # Never update primary key
+                if column == PRIMARY_KEY:
                     continue
+
+                # updated_at should normally be handled
+                # by Supabase trigger/default
+                if column == "updated_at":
+                    continue
+
 
                 if pd.isna(value):
                     value = None
+
 
                 update_data[column] = value
 
@@ -665,13 +761,7 @@ if sync_clicked:
                 continue
 
 
-            # Optimistic concurrency
-            old_updated_at = original.get(
-                "updated_at"
-            )
-
-
-            update_query = (
+            query = (
                 sync_client
                 .table(TABLE_NAME)
                 .update(update_data)
@@ -682,30 +772,37 @@ if sync_clicked:
             )
 
 
-            if (
-                "updated_at" in df.columns
-                and pd.notna(old_updated_at)
-            ):
+            # ------------------------------------------------
+            # OPTIMISTIC CONCURRENCY
+            # ------------------------------------------------
 
-                update_query = update_query.eq(
-                    "updated_at",
-                    str(old_updated_at)
+            if "updated_at" in df.columns:
+
+                old_updated_at = original.get(
+                    "updated_at"
                 )
 
+                if pd.notna(old_updated_at):
 
-            result = update_query.execute()
+                    query = query.eq(
+                        "updated_at",
+                        str(old_updated_at)
+                    )
 
 
-            if not result.data:
+            result = query.execute()
 
-                errors.append(
-                    f"UPDATE {patient_id}: "
-                    f"record may have been changed by another user."
-                )
+
+            if result.data:
+
+                success_count += 1
 
             else:
 
-                success_count += 1
+                errors.append(
+                    f"UPDATE failed: "
+                    f"{patient_id}"
+                )
 
 
         except Exception as e:
@@ -715,9 +812,9 @@ if sync_clicked:
             )
 
 
-    # --------------------------------------------------------
-    # INSERT
-    # --------------------------------------------------------
+    # ========================================================
+    # INSERT NEW RECORDS
+    # ========================================================
 
     if can_edit:
 
@@ -727,18 +824,28 @@ if sync_clicked:
 
                 insert_data = {}
 
+
                 for column, value in row_data.items():
 
                     if column == "updated_at":
                         continue
 
+
                     if pd.isna(value):
                         value = None
+
 
                     insert_data[column] = value
 
 
-                if not insert_data:
+                # Skip completely empty rows
+                if not any(
+                    value not in [
+                        None,
+                        ""
+                    ]
+                    for value in insert_data.values()
+                ):
                     continue
 
 
@@ -757,7 +864,8 @@ if sync_clicked:
                 else:
 
                     errors.append(
-                        f"INSERT row {row_index}: no data returned."
+                        f"INSERT failed: "
+                        f"row {row_index}"
                     )
 
 
@@ -768,16 +876,17 @@ if sync_clicked:
                 )
 
 
-    # --------------------------------------------------------
-    # DELETE
-    # --------------------------------------------------------
+    # ========================================================
+    # DELETE RECORDS
+    # ========================================================
 
     if deleted_rows:
 
         if not can_delete:
 
             errors.append(
-                "Only administrators can delete records."
+                "DELETE failed: "
+                "Only admin users can delete records."
             )
 
         else:
@@ -786,8 +895,11 @@ if sync_clicked:
 
                 try:
 
+                    row_index = int(row_index)
+
                     if row_index >= len(df):
                         continue
+
 
                     original = df.iloc[row_index]
 
@@ -795,11 +907,12 @@ if sync_clicked:
                         PRIMARY_KEY
                     )
 
+
                     if pd.isna(patient_id):
                         continue
 
 
-                    delete_query = (
+                    query = (
                         sync_client
                         .table(TABLE_NAME)
                         .delete()
@@ -810,23 +923,25 @@ if sync_clicked:
                     )
 
 
-                    # Optimistic concurrency
-                    old_updated_at = original.get(
-                        "updated_at"
-                    )
+                    # ------------------------------------------------
+                    # OPTIMISTIC CONCURRENCY
+                    # ------------------------------------------------
 
-                    if (
-                        "updated_at" in df.columns
-                        and pd.notna(old_updated_at)
-                    ):
+                    if "updated_at" in df.columns:
 
-                        delete_query = delete_query.eq(
-                            "updated_at",
-                            str(old_updated_at)
+                        old_updated_at = original.get(
+                            "updated_at"
                         )
 
+                        if pd.notna(old_updated_at):
 
-                    result = delete_query.execute()
+                            query = query.eq(
+                                "updated_at",
+                                str(old_updated_at)
+                            )
+
+
+                    result = query.execute()
 
 
                     if result.data:
@@ -836,8 +951,8 @@ if sync_clicked:
                     else:
 
                         errors.append(
-                            f"DELETE {patient_id}: "
-                            f"record may have been changed by another user."
+                            f"DELETE failed: "
+                            f"{patient_id}"
                         )
 
 
@@ -852,25 +967,29 @@ if sync_clicked:
     # SYNC RESULT
     # ========================================================
 
-    if success_count:
+    if success_count > 0:
 
         st.success(
-            f"Successfully synchronized "
-            f"{success_count} change(s)."
+            f"✅ {success_count} change(s) "
+            f"synchronized successfully."
         )
 
 
     if errors:
 
         st.error(
-            f"{len(errors)} change(s) could not be synchronized."
+            f"❌ {len(errors)} change(s) failed."
         )
 
         for error in errors:
+
             st.warning(error)
 
 
-    # Refresh editor
+    # ========================================================
+    # REFRESH DATA EDITOR
+    # ========================================================
+
     st.session_state.grid_version += 1
 
     st.rerun()
