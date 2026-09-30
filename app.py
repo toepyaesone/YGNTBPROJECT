@@ -3,7 +3,7 @@ import pandas as pd
 from supabase import create_client, Client
 
 # ==========================================
-# 1. PAGE CONFIGURATION
+# 1. PAGE CONFIGURATION & INITIALIZATION
 # ==========================================
 st.set_page_config(
     page_title="Consultation Register",
@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Use st.secrets safely with fallback to empty strings
+# Fetch credentials from st.secrets safely with fallback defaults
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://kocihpxevlowqbguhstf.supabase.co")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "sb_publishable_1MWEplxpyp0YOGW_TxZiMQ_HbvtHP5Z")
 
@@ -20,22 +20,23 @@ PRIMARY_KEY = "patientid"
 
 base_supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Initialize editor version key for reset/discard functionality
+# Session state initialization for dynamic widget key management
 if "grid_version" not in st.session_state:
     st.session_state.grid_version = 0
 
-
-# ==========================================
-# 2. SESSION & AUTHENTICATION
-# ==========================================
 if "session" not in st.session_state:
     st.session_state.session = None
+
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
 
+
+# ==========================================
+# 2. AUTHENTICATION & CLIENT HELPER
+# ==========================================
 def get_user_client() -> Client:
-    """Sets the access token on the client for RLS requests."""
-    if st.session_state.session:
+    """Returns a Supabase client attached with the logged-in user's access token for RLS."""
+    if st.session_state.session and hasattr(st.session_state.session, "access_token"):
         client = create_client(SUPABASE_URL, SUPABASE_KEY)
         client.postgrest.auth(st.session_state.session.access_token)
         return client
@@ -79,11 +80,11 @@ if not st.session_state.session:
             if email and password:
                 login_user(email, password)
             else:
-                st.warning("Please enter email and password.")
+                st.warning("Please enter both email and password.")
 
 else:
     # ==========================================
-    # 4. MAIN CONSULTATION GRID
+    # 4. MAIN CONSULTATION DASHBOARD
     # ==========================================
     user_client = get_user_client()
     user_email = st.session_state.session.user.email
@@ -100,34 +101,38 @@ else:
 
     st.divider()
 
-    # Filters & Pagination
+    # Search & Filter Input Bar
     f_col1, f_col2, f_col3 = st.columns([2, 1, 1])
     
     with f_col1:
-        search_q = st.text_input("🔍 Search (Patient ID, Name, Serial No, Township)", value="")
+        search_q = st.text_input("🔍 Search (Patient ID, Name, Serial No, Township)", value="", key="search_input")
     with f_col2:
-        year_filter = st.text_input("Filter Reporting Year", value="")
+        year_filter = st.text_input("Filter Reporting Year", value="", key="year_input")
     with f_col3:
         page_size = st.selectbox("Rows per page", options=[10, 25, 50, 100], index=1)
 
-    # Query Data
+    # Construct and Execute Data Query
     try:
         query = user_client.table(TABLE_NAME).select("*")
         
+        # 1. Apply Reporting Year Filter
         if year_filter.strip():
-            # Cast integer/bigint year columns to string search if necessary
-            query = query.eq("reportingyear", year_filter.strip())
+            yf = year_filter.strip()
+            # Handles string or integer reporting year columns
+            query = query.eq("reportingyear", yf)
             
+        # 2. Apply Full-Text Search Across Multiple Fields
         if search_q.strip():
             sq = search_q.strip()
             # FIX: Explicitly cast bigint/numeric columns (patientid, srno) to text (::text)
-            # so Postgres ilike works without type mismatch errors.
+            # to prevent PostgreSQL type mismatch errors (bigint ~~* unknown)
             query = query.or_(
                 f"patientid::text.ilike.%{sq}%,name.ilike.%{sq}%,srno::text.ilike.%{sq}%,townshipname.ilike.%{sq}%"
             )
             
         response = query.order(PRIMARY_KEY, desc=True).limit(page_size).execute()
-        df = pd.DataFrame(response.data)
+        df = pd.DataFrame(response.data) if response.data else pd.DataFrame()
+        
     except Exception as e:
         st.error(f"Error querying `Consultation` table: {e}")
         df = pd.DataFrame()
@@ -140,19 +145,17 @@ else:
     else:
         st.caption("Double-click any cell to edit. Scroll horizontally to view all columns.")
 
-        # Primary column config schema
+        # Column Config Schema
         column_configs = {
             PRIMARY_KEY: st.column_config.TextColumn("Patient ID", disabled=True),
             "updated_at": st.column_config.DatetimeColumn("Last Modified", disabled=True, format="YYYY-MM-DD HH:mm:ss"),
         }
 
-        # Normalize column names & filter configs safely
+        # Clean column headers and ensure valid mapping
         df.columns = df.columns.str.strip()
-        valid_column_configs = {
-            col: config for col, config in column_configs.items() if col in df.columns
-        }
+        valid_configs = {col: cfg for col, cfg in column_configs.items() if col in df.columns}
 
-        # Dynamic session key to allow clearing local editor edits on Discard
+        # Dynamic session key ensures editor clears correctly when discarded or synced
         current_grid_key = f"consultation_grid_{st.session_state.grid_version}"
 
         edited_df = st.data_editor(
@@ -162,10 +165,10 @@ else:
             num_rows="dynamic" if can_add_or_delete else "fixed",
             use_container_width=True,
             hide_index=True,
-            column_config=valid_column_configs
+            column_config=valid_configs
         )
 
-        # Delta capture from editor state
+        # Retrieve pending edits from Streamlit state
         editor_state = st.session_state.get(current_grid_key, {})
         edited_rows = editor_state.get("edited_rows", {})
         added_rows = editor_state.get("added_rows", [])
@@ -173,7 +176,7 @@ else:
 
         total_changes = len(edited_rows) + len(added_rows) + len(deleted_row_indices)
 
-        # Sync & Discard Action Panel
+        # Sync & Discard Operations Toolbar
         if not is_read_only and total_changes > 0:
             st.warning(
                 f"⚠ Pending changes: **{len(edited_rows)}** update(s), "
@@ -188,7 +191,7 @@ else:
                     success_count = 0
                     error_messages = []
 
-                    # 1. UPDATES
+                    # 1. PROCESS UPDATES
                     if edited_rows:
                         for row_idx, updated_fields in edited_rows.items():
                             row_record = df.iloc[row_idx]
@@ -217,14 +220,14 @@ else:
 
                                 if len(res.data) == 0:
                                     conflict_occurred = True
-                                    error_messages.append(f"❌ **Conflict on `{row_id}`**: Modified by another user.")
+                                    error_messages.append(f"❌ **Conflict on Record `{row_id}`**: Modified by another user.")
                                 else:
                                     success_count += 1
 
                             except Exception as e:
                                 error_messages.append(f"Failed updating `{row_id}`: {e}")
 
-                    # 2. INSERTIONS
+                    # 2. PROCESS INSERTIONS
                     if added_rows and current_role in ["editor", "admin"]:
                         new_records = []
                         for row in added_rows:
@@ -246,7 +249,7 @@ else:
                         except Exception as e:
                             error_messages.append(f"Insertion failed: {e}")
 
-                    # 3. DELETIONS
+                    # 3. PROCESS DELETIONS
                     if deleted_row_indices and current_role == "admin":
                         deleted_ids = [
                             df.iloc[idx][PRIMARY_KEY]
@@ -260,7 +263,7 @@ else:
                             except Exception as e:
                                 error_messages.append(f"Deletion failed: {e}")
 
-                    # REPORT RESULTS
+                    # DISPLAY RESULTS
                     if conflict_occurred:
                         st.error("🚨 **Concurrency Conflict Detected!**")
                         for err in error_messages:
@@ -273,13 +276,11 @@ else:
                     else:
                         st.success(f"🎉 Successfully synced {success_count} operation(s)!")
                         st.cache_data.clear()
-                        # Increment grid version to reset editor state after sync
                         st.session_state.grid_version += 1
                         st.rerun()
 
             with col_discard:
                 if st.button("❌ Discard Local Changes", use_container_width=True):
-                    # FIX: Incrementing grid_version forces Streamlit to rebuild st.data_editor
-                    # with a fresh key, clearing un-synced edits immediately.
+                    # Incrementing grid_version forces Streamlit to re-render a fresh data_editor widget
                     st.session_state.grid_version += 1
                     st.rerun()
