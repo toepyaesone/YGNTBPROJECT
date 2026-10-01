@@ -1,15 +1,13 @@
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
-import streamlit as st
-import pandas as pd
-from datetime import timedelta
-from supabase import create_client, Client
-
 from st_aggrid import (
     AgGrid,
     GridOptionsBuilder,
     GridUpdateMode,
-    DataReturnMode
+    DataReturnMode,
+    ColumnsAutoSizeMode
 )
+import streamlit as st
+import pandas as pd
+from supabase import create_client, Client
 
 
 # ============================================================
@@ -48,9 +46,7 @@ base_supabase: Client = create_client(
 
 
 def get_user_client():
-
     session = st.session_state.get("session")
-
     if not session:
         return base_supabase
 
@@ -58,11 +54,7 @@ def get_user_client():
         SUPABASE_URL,
         SUPABASE_KEY
     )
-
-    client.postgrest.auth(
-        session.access_token
-    )
-
+    client.postgrest.auth(session.access_token)
     return client
 
 
@@ -73,56 +65,43 @@ def get_user_client():
 defaults = {
     "session": None,
     "user_role": None,
-
     # Persistent pending changes
     "pending_updates": {},
     "pending_inserts": [],
     "pending_deletes": set(),
-
     # Temporary insert counter
     "insert_counter": 0,
-
     # Grid refresh
     "grid_version": 0,
     "filter_version": 0,
 }
 
 for key, value in defaults.items():
-
     if key not in st.session_state:
-
-        # Avoid sharing mutable defaults
         if isinstance(value, dict):
             value = {}
-
         elif isinstance(value, list):
             value = []
-
         elif isinstance(value, set):
             value = set()
-
         st.session_state[key] = value
 
 
 # ============================================================
-# LOGIN
+# LOGIN / LOGOUT FUNCTIONS
 # ============================================================
 
 def login_user(email, password):
-
     try:
-
         response = base_supabase.auth.sign_in_with_password({
             "email": email,
             "password": password
         })
 
         if not response.session:
-
             return False, "Login failed."
 
         st.session_state.session = response.session
-
         user_id = response.session.user.id
 
         role_result = (
@@ -135,35 +114,22 @@ def login_user(email, password):
         )
 
         if role_result.data:
-
             st.session_state.user_role = (
-                role_result.data[0].get("role")
-                or "viewer"
+                role_result.data[0].get("role") or "viewer"
             )
-
         else:
-
             st.session_state.user_role = "viewer"
 
         return True, "Login successful."
 
     except Exception as e:
-
         return False, str(e)
 
 
-# ============================================================
-# LOGOUT
-# ============================================================
-
 def logout_user():
-
     try:
-
         base_supabase.auth.sign_out()
-
     except Exception:
-
         pass
 
     st.session_state.session = None
@@ -184,58 +150,31 @@ def logout_user():
 # ============================================================
 
 if not st.session_state.session:
-
     st.title("🩺 Consultation Data")
 
     with st.form("login_form"):
-
         email = st.text_input("Email")
-
-        password = st.text_input(
-            "Password",
-            type="password"
-        )
-
-        login_clicked = st.form_submit_button(
-            "Login",
-            use_container_width=True
-        )
+        password = st.text_input("Password", type="password")
+        login_clicked = st.form_submit_button("Login", use_container_width=True)
 
     if login_clicked:
-
-        success, message = login_user(
-            email,
-            password
-        )
-
+        success, message = login_user(email, password)
         if success:
-
             st.success(message)
             st.rerun()
-
         else:
-
             st.error(message)
 
     st.stop()
 
 
 # ============================================================
-# USER ROLE
+# USER ROLE & PERMISSIONS
 # ============================================================
 
-user_role = (
-    st.session_state.user_role
-    or "viewer"
-)
-
-can_edit = user_role in [
-    "editor",
-    "admin"
-]
-
+user_role = st.session_state.user_role or "viewer"
+can_edit = user_role in ["editor", "admin"]
 can_add = user_role == "admin"
-
 can_delete = user_role == "admin"
 
 
@@ -244,16 +183,9 @@ can_delete = user_role == "admin"
 # ============================================================
 
 st.sidebar.title("🩺 Consultation")
+st.sidebar.write(f"**Role:** {user_role}")
 
-st.sidebar.write(
-    f"**Role:** {user_role}"
-)
-
-if st.sidebar.button(
-    "Logout",
-    use_container_width=True
-):
-
+if st.sidebar.button("Logout", use_container_width=True):
     logout_user()
 
 
@@ -262,315 +194,123 @@ if st.sidebar.button(
 # ============================================================
 
 def clean_value(value):
-
     if pd.isna(value):
-
         return None
-
     return value
 
 
 def normalize_patient_id(value):
-
-    if value is None:
+    if value is None or pd.isna(value):
         return None
-
-    if pd.isna(value):
-        return None
-
     return str(value)
 
 
 def clear_pending():
-
     st.session_state.pending_updates = {}
     st.session_state.pending_inserts = []
     st.session_state.pending_deletes = set()
 
 
 def add_pending_update(patient_id, changes):
-
-    patient_id = normalize_patient_id(
-        patient_id
-    )
-
-    if not patient_id:
-        return
-
-    if patient_id in st.session_state.pending_deletes:
+    patient_id = normalize_patient_id(patient_id)
+    if not patient_id or patient_id in st.session_state.pending_deletes:
         return
 
     if patient_id not in st.session_state.pending_updates:
-
-        st.session_state.pending_updates[
-            patient_id
-        ] = {}
+        st.session_state.pending_updates[patient_id] = {}
 
     for column, value in changes.items():
-
-        if column in [
-            PRIMARY_KEY,
-            "updated_at"
-        ]:
+        if column in [PRIMARY_KEY, "updated_at"]:
             continue
+        st.session_state.pending_updates[patient_id][column] = clean_value(value)
 
-        st.session_state.pending_updates[
-            patient_id
-        ][column] = clean_value(value)
-
-
-# ============================================================
-# RESET DATE FILTER
-# ============================================================
 
 def reset_filters():
-
     st.session_state.filter_version += 1
     st.session_state.grid_version += 1
+    st.rerun()
 
 
 # ============================================================
-# FILTER AREA
+# FILTER AREA (RESET FILTERS ONLY)
 # ============================================================
 
-st.subheader("🔎 Database Filters")
+st.subheader("🔎 Controls & Filters")
 
-filter_version = (
-    st.session_state.filter_version
-)
-
-col1, col2, col3 = st.columns(3)
-
-
-with col1:
-
-    date_from = st.date_input(
-        "Date From",
-        value=None,
-        key=f"date_from_{filter_version}"
-    )
-
-
-with col2:
-
-    date_to = st.date_input(
-        "Date To",
-        value=None,
-        key=f"date_to_{filter_version}"
-    )
-
-
-with col3:
-
-    if st.button(
-        "🔄 Reset Filters",
-        use_container_width=True
-    ):
-
+col_reset, _ = st.columns([1, 3])
+with col_reset:
+    if st.button("🔄 Reset Grid Filters", use_container_width=True):
         reset_filters()
 
 
 # ============================================================
-# BUILD SUPABASE QUERY
+# BUILD SUPABASE QUERY (ALL DATA UP TO MAX_ROWS)
 # ============================================================
 
 client = get_user_client()
 
-query = (
-    client
-    .table(TABLE_NAME)
-    .select("*")
-)
-
-
-# ============================================================
-# DATE FILTER
-# ============================================================
-
-if date_from:
-
-    query = query.gte(
-        DATE_COLUMN,
-        date_from.isoformat()
-    )
-
-
-if date_to:
-
-    next_day = date_to + timedelta(days=1)
-
-    query = query.lt(
-        DATE_COLUMN,
-        next_day.isoformat()
-    )
-
-
-# ============================================================
-# LOAD DATA
-# ============================================================
-
 try:
-
     result = (
-        query
-        .order(
-            PRIMARY_KEY,
-            desc=True
-        )
+        client
+        .table(TABLE_NAME)
+        .select("*")
+        .order(PRIMARY_KEY, desc=True)
         .limit(MAX_ROWS)
         .execute()
     )
-
     data = result.data or []
-
 except Exception as e:
-
-    st.error(
-        f"Error loading Consultation data: {e}"
-    )
-
+    st.error(f"Error loading Consultation data: {e}")
     st.stop()
-
 
 df = pd.DataFrame(data)
 
 
 # ============================================================
-# EMPTY DATAFRAME SAFETY
+# APPLY PENDING CHANGES TO DISPLAY DATAFRAME
 # ============================================================
 
-if df.empty:
-
-    st.info(
-        "No records found for the selected date range."
-    )
-
-    # Still show pending changes
-    # because pending changes must survive filters.
-
-
-# ============================================================
-# REMOVE PENDING DELETES FROM DISPLAY
-# ============================================================
-
+# 1. Hide deleted rows
 if not df.empty and PRIMARY_KEY in df.columns:
+    df[PRIMARY_KEY] = df[PRIMARY_KEY].astype(str)
+    delete_ids = {str(x) for x in st.session_state.pending_deletes}
+    df = df[~df[PRIMARY_KEY].isin(delete_ids)].copy()
 
-    df[PRIMARY_KEY] = (
-        df[PRIMARY_KEY]
-        .astype(str)
-    )
-
-    delete_ids = {
-        str(x)
-        for x in st.session_state.pending_deletes
-    }
-
-    df = df[
-        ~df[PRIMARY_KEY].isin(delete_ids)
-    ].copy()
-
-
-# ============================================================
-# APPLY PENDING UPDATES TO DISPLAY
-# ============================================================
-
+# 2. Apply updates
 if not df.empty:
-
-    for patient_id, changes in (
-        st.session_state.pending_updates.items()
-    ):
-
-        mask = (
-            df[PRIMARY_KEY].astype(str)
-            == str(patient_id)
-        )
-
+    for patient_id, changes in st.session_state.pending_updates.items():
+        mask = df[PRIMARY_KEY].astype(str) == str(patient_id)
         if mask.any():
-
             for column, value in changes.items():
-
                 if column in df.columns:
+                    df.loc[mask, column] = value
 
-                    df.loc[
-                        mask,
-                        column
-                    ] = value
-
-
-# ============================================================
-# ADD PENDING INSERTS TO DISPLAY
-# ============================================================
-
+# 3. Append pending inserts
 if st.session_state.pending_inserts:
-
-    insert_df = pd.DataFrame(
-        st.session_state.pending_inserts
-    )
-
+    insert_df = pd.DataFrame(st.session_state.pending_inserts)
     if not insert_df.empty:
-
-        # Match database columns
         for column in df.columns:
-
             if column not in insert_df.columns:
-
                 insert_df[column] = None
-
-        # Keep same order
         if not df.empty:
-
-            insert_df = insert_df[
-                df.columns
-            ]
-
-        df = pd.concat(
-            [
-                df,
-                insert_df
-            ],
-            ignore_index=True
-        )
+            insert_df = insert_df[df.columns]
+        df = pd.concat([df, insert_df], ignore_index=True)
 
 
 # ============================================================
-# GRID DATA
-# ============================================================
-
-if not df.empty:
-
-    st.caption(
-        f"Showing {len(df):,} record(s), "
-        f"maximum {MAX_ROWS:,}."
-    )
-
-
-# ============================================================
-# AG GRID
+# DISPLAY AG GRID
 # ============================================================
 
 st.subheader("📋 Consultation Data")
 
-
-# ------------------------------------------------------------
-# GRID OPTIONS
-# ------------------------------------------------------------
-
 if df.empty:
-
-    st.info(
-        "No records to display."
-    )
-
+    st.info("No records to display.")
 else:
+    st.caption(f"Showing {len(df):,} record(s), maximum {MAX_ROWS:,}.")
 
-    gb = GridOptionsBuilder.from_dataframe(
-        df
-    )
+    gb = GridOptionsBuilder.from_dataframe(df)
 
-    # --------------------------------------------------------
-    # DEFAULT COLUMN SETTINGS
-    # --------------------------------------------------------
-
+    # Column configuration
     gb.configure_default_column(
         sortable=True,
         filter=True,
@@ -580,187 +320,98 @@ else:
         minWidth=110
     )
 
-    # --------------------------------------------------------
-    # SELECTION
-    # --------------------------------------------------------
-
     if can_delete:
-
         gb.configure_selection(
             selection_mode="multiple",
             use_checkbox=True
         )
 
-    # --------------------------------------------------------
-    # PRIMARY KEY
-    # --------------------------------------------------------
-
     if PRIMARY_KEY in df.columns:
-
         gb.configure_column(
             PRIMARY_KEY,
             editable=False,
             filter="agTextColumnFilter"
         )
 
-    # --------------------------------------------------------
-    # UPDATED AT
-    # --------------------------------------------------------
-
     if "updated_at" in df.columns:
-
-        gb.configure_column(
-            "updated_at",
-            editable=False
-        )
-
-    # --------------------------------------------------------
-    # DATE
-    # --------------------------------------------------------
+        gb.configure_column("updated_at", editable=False)
 
     if DATE_COLUMN in df.columns:
-
         gb.configure_column(
             DATE_COLUMN,
             filter="agDateColumnFilter"
         )
 
-    # --------------------------------------------------------
-    # GRID OPTIONS
-    # --------------------------------------------------------
+    # Enable SideBar Tool Panel for Column Display / Visibility Filtering
+    gb.configure_side_bar(
+        defaultToolPanel="",
+        toolPanels=["columns"]
+    )
 
     gb.configure_grid_options(
-        rowSelection="multiple"
-        if can_delete
-        else None,
-
+        rowSelection="multiple" if can_delete else None,
         suppressRowClickSelection=True,
-
         animateRows=False,
-
         pagination=True,
-
         paginationPageSize=50,
-
         domLayout="normal"
     )
 
     grid_options = gb.build()
 
-
-    # ========================================================
-    # DISPLAY AG GRID
-    # ========================================================
-
     grid_response = AgGrid(
-
         df,
-
         gridOptions=grid_options,
-
         height=600,
-
         width="100%",
-
         theme="streamlit",
-
         update_mode=GridUpdateMode.VALUE_CHANGED,
-
         data_return_mode=DataReturnMode.AS_INPUT,
-
-        fit_columns_on_grid_load=False,
-
+        columns_auto_size_mode=ColumnsAutoSizeMode.NO_STRETCH,
         allow_unsafe_jscode=False,
-
-        key=f"consultation_aggrid_"
-            f"{st.session_state.grid_version}"
-
+        key=f"consultation_aggrid_{st.session_state.grid_version}"
     )
 
-
-    # ========================================================
-    # CAPTURE EDITED DATA
-    # ========================================================
-
-    returned_df = grid_response["data"]
-
+    # Capture edits
+    returned_df = grid_response.get("data")
     if isinstance(returned_df, pd.DataFrame):
-
-        # ----------------------------------------------------
-        # EXISTING RECORDS
-        # ----------------------------------------------------
-
         for _, edited_row in returned_df.iterrows():
-
             if PRIMARY_KEY not in edited_row:
-
                 continue
 
-            patient_id = (
-                edited_row[PRIMARY_KEY]
-            )
-
+            patient_id = edited_row[PRIMARY_KEY]
             if pd.isna(patient_id):
-
                 continue
 
             patient_id = str(patient_id)
 
-            # Find original/current database row
             original_match = None
-
             if not df.empty:
-
-                matches = df[
-                    df[PRIMARY_KEY].astype(str)
-                    == patient_id
-                ]
-
+                matches = df[df[PRIMARY_KEY].astype(str) == patient_id]
                 if not matches.empty:
-
-                    original_match = (
-                        matches.iloc[0]
-                    )
+                    original_match = matches.iloc[0]
 
             if original_match is None:
-
                 continue
 
             changes = {}
-
             for column in df.columns:
-
-                if column in [
-                    PRIMARY_KEY,
-                    "updated_at"
-                ]:
+                if column in [PRIMARY_KEY, "updated_at"]:
                     continue
 
-                new_value = (
-                    edited_row.get(column)
-                )
+                new_val = edited_row.get(column)
+                old_val = original_match.get(column)
 
-                old_value = (
-                    original_match.get(column)
-                )
+                if pd.isna(new_val):
+                    new_val = None
+                if pd.isna(old_val):
+                    old_val = None
 
-                # Treat NaN / None as equal
-                if pd.isna(new_value):
-                    new_value = None
-
-                if pd.isna(old_value):
-                    old_value = None
-
-                if new_value != old_value:
-
-                    changes[column] = new_value
+                if new_val != old_val:
+                    changes[column] = new_val
 
             if changes:
-
-                add_pending_update(
-                    patient_id,
-                    changes
-                )
+                add_pending_update(patient_id, changes)
 
 
 # ============================================================
@@ -768,235 +419,79 @@ else:
 # ============================================================
 
 if can_add or can_delete:
-
     col_add, col_delete = st.columns(2)
 
-
-    # --------------------------------------------------------
-    # ADD ROW
-    # --------------------------------------------------------
-
     with col_add:
-
         if can_add:
-
-            if st.button(
-                "➕ Add Row",
-                use_container_width=True
-            ):
-
+            if st.button("➕ Add Row", use_container_width=True):
                 st.session_state.insert_counter += 1
+                temp_id = f"__NEW__{st.session_state.insert_counter}"
 
-                temp_id = (
-                    f"__NEW__"
-                    f"{st.session_state.insert_counter}"
-                )
-
-                new_row = {}
-
-                for column in df.columns:
-
-                    new_row[column] = None
-
+                new_row = {col: None for col in df.columns}
                 new_row[PRIMARY_KEY] = temp_id
 
-                st.session_state.pending_inserts.append(
-                    new_row
-                )
-
+                st.session_state.pending_inserts.append(new_row)
                 st.session_state.grid_version += 1
-
                 st.rerun()
 
-
-    # --------------------------------------------------------
-    # DELETE SELECTED
-    # --------------------------------------------------------
-
     with col_delete:
-
-        if can_delete:
-
-            if st.button(
-                "🗑️ Delete Selected",
-                use_container_width=True
-            ):
-
-                selected_rows = (
-                    grid_response.get(
-                        "selected_rows",
-                        []
-                    )
-                    if not df.empty
-                    else []
-                )
-
-                if isinstance(
-                    selected_rows,
-                    pd.DataFrame
-                ):
-
-                    selected_rows = (
-                        selected_rows
-                        .to_dict("records")
-                    )
+        if can_delete and 'grid_response' in locals():
+            if st.button("🗑️ Delete Selected", use_container_width=True):
+                selected_rows = grid_response.get("selected_rows", [])
+                if isinstance(selected_rows, pd.DataFrame):
+                    selected_rows = selected_rows.to_dict("records")
 
                 if not selected_rows:
-
-                    st.warning(
-                        "Select one or more rows first."
-                    )
-
+                    st.warning("Select one or more rows first.")
                 else:
-
                     for row in selected_rows:
-
-                        patient_id = row.get(
-                            PRIMARY_KEY
-                        )
-
+                        patient_id = row.get(PRIMARY_KEY)
                         if patient_id is None:
                             continue
+                        patient_id = str(patient_id)
 
-                        patient_id = str(
-                            patient_id
-                        )
-
-                        # ----------------------------------
-                        # Delete unsaved INSERT
-                        # ----------------------------------
-
-                        if patient_id.startswith(
-                            "__NEW__"
-                        ):
-
+                        if patient_id.startswith("__NEW__"):
                             st.session_state.pending_inserts = [
-
-                                item
-
-                                for item
-                                in st.session_state.pending_inserts
-
-                                if str(
-                                    item.get(
-                                        PRIMARY_KEY
-                                    )
-                                ) != patient_id
-
+                                item for item in st.session_state.pending_inserts
+                                if str(item.get(PRIMARY_KEY)) != patient_id
                             ]
-
-                            continue
-
-                        # ----------------------------------
-                        # Delete existing database record
-                        # ----------------------------------
-
-                        st.session_state.pending_deletes.add(
-                            patient_id
-                        )
-
-                        # Remove any pending update
-                        st.session_state.pending_updates.pop(
-                            patient_id,
-                            None
-                        )
+                        else:
+                            st.session_state.pending_deletes.add(patient_id)
+                            st.session_state.pending_updates.pop(patient_id, None)
 
                     st.session_state.grid_version += 1
-
                     st.rerun()
-
-
-# ============================================================
-# PENDING CHANGES
-# ============================================================
-
-pending_rows = []
-
-
-# ------------------------------------------------------------
-# UPDATE
-# ------------------------------------------------------------
-
-for patient_id, changes in (
-    st.session_state.pending_updates.items()
-):
-
-    row = {
-        "Action": "UPDATE",
-        PRIMARY_KEY: patient_id
-    }
-
-    row.update(changes)
-
-    pending_rows.append(row)
-
-
-# ------------------------------------------------------------
-# INSERT
-# ------------------------------------------------------------
-
-for row_data in (
-    st.session_state.pending_inserts
-):
-
-    row = {
-        "Action": "INSERT"
-    }
-
-    for column, value in row_data.items():
-
-        if column == PRIMARY_KEY:
-
-            # Do not display internal temporary ID
-            continue
-
-        row[column] = value
-
-    pending_rows.append(row)
-
-
-# ------------------------------------------------------------
-# DELETE
-# ------------------------------------------------------------
-
-for patient_id in (
-    st.session_state.pending_deletes
-):
-
-    pending_rows.append({
-
-        "Action": "DELETE",
-
-        PRIMARY_KEY: patient_id
-
-    })
 
 
 # ============================================================
 # PENDING CHANGES DISPLAY
 # ============================================================
 
-st.subheader(
-    f"📝 Pending Changes ({len(pending_rows)})"
-)
+pending_rows = []
+
+for patient_id, changes in st.session_state.pending_updates.items():
+    row = {"Action": "UPDATE", PRIMARY_KEY: patient_id}
+    row.update(changes)
+    pending_rows.append(row)
+
+for row_data in st.session_state.pending_inserts:
+    row = {"Action": "INSERT"}
+    for column, value in row_data.items():
+        if column == PRIMARY_KEY:
+            continue
+        row[column] = value
+    pending_rows.append(row)
+
+for patient_id in st.session_state.pending_deletes:
+    pending_rows.append({"Action": "DELETE", PRIMARY_KEY: patient_id})
+
+st.subheader(f"📝 Pending Changes ({len(pending_rows)})")
 
 if pending_rows:
-
-    pending_df = pd.DataFrame(
-        pending_rows
-    )
-
-    st.dataframe(
-        pending_df,
-        use_container_width=True,
-        hide_index=True
-    )
-
+    pending_df = pd.DataFrame(pending_rows)
+    st.dataframe(pending_df, use_container_width=True, hide_index=True)
 else:
-
-    st.caption(
-        "No pending changes."
-    )
+    st.caption("No pending changes.")
 
 
 # ============================================================
@@ -1005,305 +500,108 @@ else:
 
 col_sync, col_discard = st.columns(2)
 
-
 with col_sync:
-
     sync_clicked = st.button(
-
         "💾 Sync Changes",
-
         type="primary",
-
-        disabled=(
-            not pending_rows
-            or not can_edit
-        ),
-
+        disabled=(not pending_rows or not can_edit),
         use_container_width=True
     )
-
 
 with col_discard:
-
     discard_clicked = st.button(
-
         "↩️ Discard Changes",
-
         disabled=not pending_rows,
-
         use_container_width=True
     )
 
-
-# ============================================================
-# DISCARD
-# ============================================================
-
 if discard_clicked:
-
     clear_pending()
-
     st.session_state.grid_version += 1
-
-    st.success(
-        "All pending changes discarded."
-    )
-
+    st.success("All pending changes discarded.")
     st.rerun()
 
-
-# ============================================================
-# SYNC
-# ============================================================
-
 if sync_clicked:
-
     sync_client = get_user_client()
-
     success_count = 0
     errors = []
 
-
-    # ========================================================
-    # UPDATE
-    # ========================================================
-
-    for patient_id, changes in (
-        st.session_state.pending_updates.items()
-    ):
-
+    # 1. Execute Updates
+    for patient_id, changes in st.session_state.pending_updates.items():
         try:
-
-            update_data = {}
-
-            for column, value in changes.items():
-
-                if column in [
-                    PRIMARY_KEY,
-                    "updated_at"
-                ]:
-                    continue
-
-                update_data[column] = (
-                    clean_value(value)
-                )
-
+            update_data = {
+                col: clean_value(val)
+                for col, val in changes.items()
+                if col not in [PRIMARY_KEY, "updated_at"]
+            }
             if not update_data:
-
                 continue
 
             result = (
-
                 sync_client
-
                 .table(TABLE_NAME)
-
                 .update(update_data)
-
-                .eq(
-                    PRIMARY_KEY,
-                    patient_id
-                )
-
+                .eq(PRIMARY_KEY, patient_id)
                 .execute()
-
             )
 
             if result.data:
-
                 success_count += 1
-
             else:
-
-                errors.append(
-                    f"UPDATE failed: {patient_id}"
-                )
-
+                errors.append(f"UPDATE failed: {patient_id}")
         except Exception as e:
+            errors.append(f"UPDATE {patient_id}: {e}")
 
-            errors.append(
-                f"UPDATE {patient_id}: {e}"
-            )
-
-
-    # ========================================================
-    # INSERT
-    # ========================================================
-
+    # 2. Execute Inserts
     if can_add:
-
-        for row_index, row_data in enumerate(
-            st.session_state.pending_inserts
-        ):
-
+        for row_index, row_data in enumerate(st.session_state.pending_inserts):
             try:
-
-                insert_data = {}
-
-                for column, value in (
-                    row_data.items()
-                ):
-
-                    # Internal temporary ID
-                    if column == PRIMARY_KEY:
-
-                        if str(value).startswith(
-                            "__NEW__"
-                        ):
-
-                            continue
-
-                    if column == "updated_at":
-                        continue
-
-                    insert_data[column] = (
-                        clean_value(value)
-                    )
-
-                # --------------------------------------------
-                # Check if row contains actual data
-                # --------------------------------------------
-
-                has_data = any(
-
-                    value not in [
-                        None,
-                        ""
-                    ]
-
-                    for value in insert_data.values()
-
-                )
-
-                if not has_data:
-
+                insert_data = {
+                    col: clean_value(val)
+                    for col, val in row_data.items()
+                    if col not in ["updated_at"] and not (col == PRIMARY_KEY and str(val).startswith("__NEW__"))
+                }
+                if not any(v not in [None, ""] for v in insert_data.values()):
                     continue
 
-                result = (
-
-                    sync_client
-
-                    .table(TABLE_NAME)
-
-                    .insert(insert_data)
-
-                    .execute()
-
-                )
-
+                result = sync_client.table(TABLE_NAME).insert(insert_data).execute()
                 if result.data:
-
                     success_count += 1
-
                 else:
-
-                    errors.append(
-                        f"INSERT failed: "
-                        f"row {row_index + 1}"
-                    )
-
+                    errors.append(f"INSERT failed: row {row_index + 1}")
             except Exception as e:
+                errors.append(f"INSERT row {row_index + 1}: {e}")
 
-                errors.append(
-                    f"INSERT row "
-                    f"{row_index + 1}: {e}"
-                )
-
-    elif st.session_state.pending_inserts:
-
-        errors.append(
-            "INSERT failed: "
-            "Only admin users can add records."
-        )
-
-
-    # ========================================================
-    # DELETE
-    # ========================================================
-
+    # 3. Execute Deletes
     if can_delete:
-
-        for patient_id in (
-            st.session_state.pending_deletes
-        ):
-
+        for patient_id in st.session_state.pending_deletes:
             try:
-
                 result = (
-
                     sync_client
-
                     .table(TABLE_NAME)
-
                     .delete()
-
-                    .eq(
-                        PRIMARY_KEY,
-                        patient_id
-                    )
-
+                    .eq(PRIMARY_KEY, patient_id)
                     .execute()
-
                 )
-
                 if result.data:
-
                     success_count += 1
-
                 else:
-
-                    errors.append(
-                        f"DELETE failed: "
-                        f"{patient_id}"
-                    )
-
+                    errors.append(f"DELETE failed: {patient_id}")
             except Exception as e:
-
-                errors.append(
-                    f"DELETE {patient_id}: {e}"
-                )
-
-    elif st.session_state.pending_deletes:
-
-        errors.append(
-            "DELETE failed: "
-            "Only admin users can delete records."
-        )
-
-
-    # ========================================================
-    # RESULT
-    # ========================================================
+                errors.append(f"DELETE {patient_id}: {e}")
 
     if success_count:
-
-        st.success(
-            f"✅ {success_count} change(s) "
-            f"synchronized successfully."
-        )
-
+        st.success(f"✅ {success_count} change(s) synchronized successfully.")
 
     if errors:
-
-        st.error(
-            f"❌ {len(errors)} change(s) failed."
-        )
-
+        st.error(f"❌ {len(errors)} change(s) failed.")
         for error in errors:
-
             st.warning(error)
 
-
-    # ========================================================
-    # CLEAR ONLY AFTER SYNC
-    # ========================================================
-
     if not errors:
-
         clear_pending()
 
     st.session_state.grid_version += 1
-
     st.rerun()
 
 
