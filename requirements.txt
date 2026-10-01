@@ -12,3 +12,4 @@ requests>=2.31.0
 supabase>=2.0.0
 rich>=13.0.0
 pygments>=2.15.0
+streamlit-aggrid==1.2.1.post2
