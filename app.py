@@ -4,17 +4,6 @@ from st_aggrid import (
     GridUpdateMode,
     DataReturnMode
 )
-grid_response = AgGrid(
-        df_display,
-        gridOptions=grid_options,
-        height=600,
-        width="100%",
-        theme="streamlit",
-        update_mode=GridUpdateMode.VALUE_CHANGED,
-        data_return_mode=DataReturnMode.AS_INPUT,
-        allow_unsafe_jscode=False,
-        key=f"consultation_aggrid_{st.session_state.grid_version}"
-    )
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
@@ -316,7 +305,7 @@ st.subheader("📋 Consultation Data")
 if df.empty:
     st.info("No records to display.")
 else:
-    # Column Display Filter (Native Streamlit Multi-select for Open Source AG Grid)
+    # Native Streamlit Multi-select for column hiding/visibility
     all_columns = list(df.columns)
     selected_columns = st.multiselect(
         "👁️ Column Display Filter",
@@ -325,7 +314,7 @@ else:
         key=f"col_filter_{st.session_state.filter_version}"
     )
 
-    # Filter dataframe to selected columns, keeping PRIMARY_KEY for operations
+    # Filter dataframe to selected columns, keeping PRIMARY_KEY for tracking operations
     cols_to_show = list(set(selected_columns + [PRIMARY_KEY]))
     df_display = df[cols_to_show]
 
@@ -333,7 +322,7 @@ else:
 
     gb = GridOptionsBuilder.from_dataframe(df_display)
 
-    # Default Column Settings (Open-source friendly)
+    # Configure open-source AG Grid column defaults
     gb.configure_default_column(
         sortable=True,
         filter=True,
@@ -355,7 +344,7 @@ else:
             PRIMARY_KEY,
             editable=False,
             filter="agTextColumnFilter",
-            hide=(PRIMARY_KEY not in selected_columns)  # Keep loaded for data tracking, hide if unchecked
+            hide=(PRIMARY_KEY not in selected_columns)  # Keep loaded for data tracking, hide if unselected
         )
 
     if "updated_at" in df_display.columns:
@@ -386,7 +375,6 @@ else:
         theme="streamlit",
         update_mode=GridUpdateMode.VALUE_CHANGED,
         data_return_mode=DataReturnMode.AS_INPUT,
-        columns_auto_size_mode=ColumnsAutoSizeMode.NO_STRETCH,
         allow_unsafe_jscode=False,
         key=f"consultation_aggrid_{st.session_state.grid_version}"
     )
@@ -455,7 +443,7 @@ if can_add or can_delete:
 
     with col_delete:
         if can_delete and 'grid_response' in locals():
-            if st.button("🗑️️ Delete Selected", use_container_width=True):
+            if st.button("🗑 Delete Selected", use_container_width=True):
                 selected_rows = grid_response.get("selected_rows", [])
                 if isinstance(selected_rows, pd.DataFrame):
                     selected_rows = selected_rows.to_dict("records")
@@ -529,7 +517,7 @@ with col_sync:
 
 with col_discard:
     discard_clicked = st.button(
-        "↩️️ Discard Changes",
+        "↩ Discard Changes",
         disabled=not pending_rows,
         use_container_width=True
     )
