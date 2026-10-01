@@ -244,7 +244,7 @@ with col_reset:
 
 
 # ============================================================
-# BUILD SUPABASE QUERY (ALL DATA UP TO MAX_ROWS)
+# BUILD SUPABASE QUERY
 # ============================================================
 
 client = get_user_client()
@@ -306,18 +306,32 @@ st.subheader("📋 Consultation Data")
 if df.empty:
     st.info("No records to display.")
 else:
+    # Column Display Filter (Native Streamlit Multi-select for Open Source AG Grid)
+    all_columns = list(df.columns)
+    selected_columns = st.multiselect(
+        "👁️ Column Display Filter",
+        options=all_columns,
+        default=all_columns,
+        key=f"col_filter_{st.session_state.filter_version}"
+    )
+
+    # Filter dataframe to selected columns, keeping PRIMARY_KEY for operations
+    cols_to_show = list(set(selected_columns + [PRIMARY_KEY]))
+    df_display = df[cols_to_show]
+
     st.caption(f"Showing {len(df):,} record(s), maximum {MAX_ROWS:,}.")
 
-    gb = GridOptionsBuilder.from_dataframe(df)
+    gb = GridOptionsBuilder.from_dataframe(df_display)
 
-    # Column configuration
+    # Default Column Settings (Open-source friendly)
     gb.configure_default_column(
         sortable=True,
         filter=True,
         floatingFilter=True,
         resizable=True,
         editable=can_edit,
-        minWidth=110
+        minWidth=110,
+        menuTabs=["filterMenuTab", "generalMenuTab"]
     )
 
     if can_delete:
@@ -326,27 +340,22 @@ else:
             use_checkbox=True
         )
 
-    if PRIMARY_KEY in df.columns:
+    if PRIMARY_KEY in df_display.columns:
         gb.configure_column(
             PRIMARY_KEY,
             editable=False,
-            filter="agTextColumnFilter"
+            filter="agTextColumnFilter",
+            hide=(PRIMARY_KEY not in selected_columns)  # Keep loaded for data tracking, hide if unchecked
         )
 
-    if "updated_at" in df.columns:
+    if "updated_at" in df_display.columns:
         gb.configure_column("updated_at", editable=False)
 
-    if DATE_COLUMN in df.columns:
+    if DATE_COLUMN in df_display.columns:
         gb.configure_column(
             DATE_COLUMN,
             filter="agDateColumnFilter"
         )
-
-    # Enable SideBar Tool Panel for Column Display / Visibility Filtering
-    gb.configure_side_bar(
-        defaultToolPanel="",
-        toolPanels=["columns"]
-    )
 
     gb.configure_grid_options(
         rowSelection="multiple" if can_delete else None,
@@ -360,7 +369,7 @@ else:
     grid_options = gb.build()
 
     grid_response = AgGrid(
-        df,
+        df_display,
         gridOptions=grid_options,
         height=600,
         width="100%",
@@ -396,7 +405,7 @@ else:
 
             changes = {}
             for column in df.columns:
-                if column in [PRIMARY_KEY, "updated_at"]:
+                if column in [PRIMARY_KEY, "updated_at"] or column not in edited_row:
                     continue
 
                 new_val = edited_row.get(column)
@@ -436,7 +445,7 @@ if can_add or can_delete:
 
     with col_delete:
         if can_delete and 'grid_response' in locals():
-            if st.button("🗑️ Delete Selected", use_container_width=True):
+            if st.button("🗑️️ Delete Selected", use_container_width=True):
                 selected_rows = grid_response.get("selected_rows", [])
                 if isinstance(selected_rows, pd.DataFrame):
                     selected_rows = selected_rows.to_dict("records")
@@ -510,7 +519,7 @@ with col_sync:
 
 with col_discard:
     discard_clicked = st.button(
-        "↩️ Discard Changes",
+        "↩️️ Discard Changes",
         disabled=not pending_rows,
         use_container_width=True
     )
