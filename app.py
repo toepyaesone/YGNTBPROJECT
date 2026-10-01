@@ -1,409 +1,3 @@
-# import streamlit as st
-# import pandas as pd
-# from supabase import create_client, Client
-
-
-# # ============================================================
-# # PAGE CONFIG
-# # ============================================================
-
-# st.set_page_config(
-#     page_title="Consultation Data",
-#     page_icon="🩺",
-#     layout="wide"
-# )
-
-
-# # ============================================================
-# # CONFIG & SECRETS
-# # ============================================================
-
-# SUPABASE_URL = st.secrets["SUPABASE_URL"]
-# SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-
-# TABLE_NAME = "Consultation"
-# PRIMARY_KEY = "patientid"
-# DATE_COLUMN = "date"
-
-# MAX_ROWS = 1000
-
-
-# # ============================================================
-# # SUPABASE CLIENT SETUP
-# # ============================================================
-
-# base_supabase: Client = create_client(
-#     SUPABASE_URL,
-#     SUPABASE_KEY
-# )
-
-
-# def get_user_client():
-#     session = st.session_state.get("session")
-#     if not session:
-#         return base_supabase
-
-#     client = create_client(
-#         SUPABASE_URL,
-#         SUPABASE_KEY
-#     )
-#     client.postgrest.auth(session.access_token)
-#     return client
-
-
-# # ============================================================
-# # SESSION STATE INITIALIZATION
-# # ============================================================
-
-# defaults = {
-#     "session": None,
-#     "user_role": None,
-#     "editor_key_version": 0,
-# }
-
-# for key, value in defaults.items():
-#     if key not in st.session_state:
-#         st.session_state[key] = value
-
-
-# # ============================================================
-# # AUTHENTICATION FUNCTIONS
-# # ============================================================
-
-# def login_user(email, password):
-#     try:
-#         response = base_supabase.auth.sign_in_with_password({
-#             "email": email,
-#             "password": password
-#         })
-
-#         if not response.session:
-#             return False, "Login failed."
-
-#         st.session_state.session = response.session
-#         user_id = response.session.user.id
-
-#         role_result = (
-#             base_supabase
-#             .table("user_roles")
-#             .select("role")
-#             .eq("user_id", user_id)
-#             .limit(1)
-#             .execute()
-#         )
-
-#         if role_result.data:
-#             st.session_state.user_role = (
-#                 role_result.data[0].get("role") or "viewer"
-#             )
-#         else:
-#             st.session_state.user_role = "viewer"
-
-#         return True, "Login successful."
-
-#     except Exception as e:
-#         return False, str(e)
-
-
-# def logout_user():
-#     try:
-#         base_supabase.auth.sign_out()
-#     except Exception:
-#         pass
-
-#     st.session_state.session = None
-#     st.session_state.user_role = None
-#     st.session_state.editor_key_version += 1
-#     st.rerun()
-
-
-# # ============================================================
-# # LOGIN SCREEN
-# # ============================================================
-
-# if not st.session_state.session:
-#     st.title("🩺 Consultation Data")
-
-#     with st.form("login_form"):
-#         email = st.text_input("Email")
-#         password = st.text_input("Password", type="password")
-#         login_clicked = st.form_submit_button("Login", use_container_width=True)
-
-#     if login_clicked:
-#         success, message = login_user(email, password)
-#         if success:
-#             st.success(message)
-#             st.rerun()
-#         else:
-#             st.error(message)
-
-#     st.stop()
-
-
-# # ============================================================
-# # USER ROLE & PERMISSIONS
-# # ============================================================
-
-# user_role = st.session_state.user_role or "viewer"
-# can_edit = user_role in ["editor", "admin"]
-# can_add = user_role == "admin"
-# can_delete = user_role == "admin"
-
-
-# # ============================================================
-# # SIDEBAR NAVIGATION
-# # ============================================================
-
-# st.sidebar.title("🩺 Consultation")
-# st.sidebar.write(f"**Role:** {user_role}")
-
-# if st.sidebar.button("Logout", use_container_width=True):
-#     logout_user()
-
-
-# # ============================================================
-# # HELPER FUNCTIONS
-# # ============================================================
-
-# def clean_value(value):
-#     if pd.isna(value):
-#         return None
-#     return value
-
-
-# # ============================================================
-# # DATA RETRIEVAL FROM SUPABASE
-# # ============================================================
-
-# client = get_user_client()
-
-# try:
-#     result = (
-#         client
-#         .table(TABLE_NAME)
-#         .select("*")
-#         .order(PRIMARY_KEY, desc=True)
-#         .limit(MAX_ROWS)
-#         .execute()
-#     )
-#     data = result.data or []
-# except Exception as e:
-#     st.error(f"Error loading Consultation data: {e}")
-#     st.stop()
-
-# df = pd.DataFrame(data)
-
-
-# # ============================================================
-# # DISPLAY & EDIT VIA ST.DATA_EDITOR
-# # ============================================================
-
-# st.subheader("📋 Consultation Data")
-
-# if df.empty:
-#     st.info("No records found in database.")
-# else:
-#     # 1. Native Column Display Filter
-#     all_columns = list(df.columns)
-#     selected_columns = st.multiselect(
-#         "👁️ Column Display Filter",
-#         options=all_columns,
-#         default=all_columns
-#     )
-
-#     # Ensure Primary Key remains accessible even if hidden visually
-#     cols_to_include = list(dict.fromkeys(selected_columns + [PRIMARY_KEY]))
-#     df_display = df[cols_to_include].copy()
-
-#     # Define column types & behaviors
-#     column_config = {}
-#     if PRIMARY_KEY in df_display.columns:
-#         column_config[PRIMARY_KEY] = st.column_config.TextColumn(
-#             "Patient ID",
-#             disabled=True,
-#             required=True
-#         )
-
-#     if "updated_at" in df_display.columns:
-#         column_config["updated_at"] = st.column_config.DatetimeColumn(
-#             "Updated At",
-#             disabled=True
-#         )
-
-#     if DATE_COLUMN in df_display.columns:
-#         column_config[DATE_COLUMN] = st.column_config.DateColumn(
-#             "Consultation Date"
-#         )
-
-#     # Configure Column Visibility
-#     for col in df_display.columns:
-#         if col not in selected_columns and col == PRIMARY_KEY:
-#             # Hide Primary Key if unchecked, but keep loaded internally
-#             column_config[col] = st.column_config.TextColumn("Patient ID", disabled=True)
-
-#     # Determine dynamic row insertion based on admin permission
-#     num_rows_mode = "dynamic" if can_add or can_delete else "fixed"
-#     editor_key = f"consultation_editor_{st.session_state.editor_key_version}"
-
-#     st.caption(f"Displaying {len(df):,} record(s). Edit cells directly below.")
-
-#     # Render Streamlit Native Data Editor
-#     edited_df = st.data_editor(
-#         df_display,
-#         key=editor_key,
-#         disabled=not can_edit,
-#         num_rows=num_rows_mode,
-#         column_config=column_config,
-#         hide_index=True,
-#         use_container_width=True
-#     )
-
-#     # Extract state changes directly from data_editor widget
-#     editor_state = st.session_state.get(editor_key, {})
-#     edited_rows = editor_state.get("edited_rows", {})
-#     added_rows = editor_state.get("added_rows", [])
-#     deleted_rows = editor_state.get("deleted_rows", [])
-
-#     has_changes = bool(edited_rows or added_rows or deleted_rows)
-
-#     # ============================================================
-#     # PENDING CHANGES SUMMARY
-#     # ============================================================
-
-#     st.subheader("📝 Pending Operations")
-
-#     if has_changes:
-#         summary_items = []
-
-#         # Count Updates
-#         if edited_rows:
-#             summary_items.append(f"**{len(edited_rows)}** row(s) updated")
-
-#         # Count Inserts
-#         if added_rows and can_add:
-#             summary_items.append(f"**{len(added_rows)}** new row(s) added")
-
-#         # Count Deletes
-#         if deleted_rows and can_delete:
-#             summary_items.append(f"**{len(deleted_rows)}** row(s) deleted")
-
-#         st.info(" | ".join(summary_items))
-#     else:
-#         st.caption("No unsaved edits.")
-
-#     # ============================================================
-#     # SYNC & DISCARD ACTIONS
-#     # ============================================================
-
-#     col_sync, col_discard = st.columns(2)
-
-#     with col_sync:
-#         sync_clicked = st.button(
-#             "💾 Sync Changes to Supabase",
-#             type="primary",
-#             disabled=not has_changes or not can_edit,
-#             use_container_width=True
-#         )
-
-#     with col_discard:
-#         discard_clicked = st.button(
-#             "↩ Discard Edits",
-#             disabled=not has_changes,
-#             use_container_width=True
-#         )
-
-#     if discard_clicked:
-#         st.session_state.editor_key_version += 1
-#         st.rerun()
-
-#     if sync_clicked:
-#         sync_client = get_user_client()
-#         success_count = 0
-#         errors = []
-
-#         # 1. Process Updates
-#         if edited_rows:
-#             for row_idx, changes in edited_rows.items():
-#                 try:
-#                     patient_id = df.iloc[row_idx][PRIMARY_KEY]
-#                     update_payload = {
-#                         col: clean_value(val)
-#                         for col, val in changes.items()
-#                         if col not in [PRIMARY_KEY, "updated_at"]
-#                     }
-
-#                     if not update_payload:
-#                         continue
-
-#                     res = (
-#                         sync_client
-#                         .table(TABLE_NAME)
-#                         .update(update_payload)
-#                         .eq(PRIMARY_KEY, patient_id)
-#                         .execute()
-#                     )
-
-#                     if res.data:
-#                         success_count += 1
-#                     else:
-#                         errors.append(f"UPDATE failed for ID {patient_id}")
-#                 except Exception as e:
-#                     errors.append(f"UPDATE Row {row_idx}: {e}")
-
-#         # 2. Process Inserts
-#         if added_rows and can_add:
-#             for idx, new_row in enumerate(added_rows):
-#                 try:
-#                     insert_payload = {
-#                         col: clean_value(val)
-#                         for col, val in new_row.items()
-#                         if col not in ["updated_at"]
-#                     }
-
-#                     if not any(v is not None for v in insert_payload.values()):
-#                         continue
-
-#                     res = sync_client.table(TABLE_NAME).insert(insert_payload).execute()
-#                     if res.data:
-#                         success_count += 1
-#                     else:
-#                         errors.append(f"INSERT failed for row {idx + 1}")
-#                 except Exception as e:
-#                     errors.append(f"INSERT Row {idx + 1}: {e}")
-
-#         # 3. Process Deletes
-#         if deleted_rows and can_delete:
-#             for row_idx in deleted_rows:
-#                 try:
-#                     patient_id = df.iloc[row_idx][PRIMARY_KEY]
-#                     res = (
-#                         sync_client
-#                         .table(TABLE_NAME)
-#                         .delete()
-#                         .eq(PRIMARY_KEY, patient_id)
-#                         .execute()
-#                     )
-
-#                     if res.data:
-#                         success_count += 1
-#                     else:
-#                         errors.append(f"DELETE failed for ID {patient_id}")
-#                 except Exception as e:
-#                     errors.append(f"DELETE Row {row_idx}: {e}")
-
-#         # Feedback & State Reset
-#         if success_count:
-#             st.success(f"✅ Synchronized {success_count} operation(s) successfully.")
-
-#         if errors:
-#             st.error(f"❌ Encounted {len(errors)} error(s):")
-#             for err in errors:
-#                 st.warning(err)
-
-#         if not errors:
-#             st.session_state.editor_key_version += 1
-#             st.rerun()
-
 import streamlit as st
 import pandas as pd
 from datetime import timedelta
@@ -821,31 +415,36 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
 
-    patientid_filter = st.multiselect(
-        "Patient ID",
-        get_unique_values("patientid"),
-        key=f"patientid_{fv}"
-    )
-
-    tsp_filter = st.multiselect(
-        "TSP",
-        get_unique_values("tsp"),
-        key=f"tsp_{fv}"
-    )
-
     visitno_filter = st.multiselect(
         "Visit No",
         get_unique_values("visitno"),
         key=f"visitno_{fv}"
     )
 
+    srno_filter = st.multiselect(
+            "SR No",
+            get_unique_values("srno"),
+            key=f"srno_{fv}"
+        )
+    
+    patientid_filter = st.multiselect(
+        "Patient ID",
+        get_unique_values("patientid"),
+        key=f"patientid_{fv}"
+    )
+
 
 with col2:
 
-    srno_filter = st.multiselect(
-        "SR No",
-        get_unique_values("srno"),
-        key=f"srno_{fv}"
+    team_filter = st.multiselect(
+        "Team",
+        get_unique_values("team"),
+        key=f"team_{fv}")
+    
+    tsp_filter = st.multiselect(
+        "TSP",
+        get_unique_values("tsp"),
+        key=f"tsp_{fv}"
     )
 
     approach_filter = st.multiselect(
@@ -853,12 +452,6 @@ with col2:
         get_unique_values("approach"),
         key=f"approach_{fv}"
     )
-
-    team_filter = st.multiselect(
-        "Team",
-        get_unique_values("team"),
-        key=f"team_{fv}")
-
 
 with col3:
 
@@ -887,12 +480,9 @@ with col3:
 
 def reset_filters():
 
-    # Only reset filter widgets.
-    # DO NOT clear pending changes.
-
+    # Only reset filter widgets. DO NOT clear pending changes.
     st.session_state.filter_version += 1
     st.session_state.grid_version += 1
-
 
 st.button(
     "🔄 Reset Filters",
