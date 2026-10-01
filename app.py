@@ -1,26 +1,4 @@
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
-``` :chatgpt-content-reference{index="4"}
-
-
-### 2. Complete AG Grid version
-
-This version intentionally changes the UI to:
-
-- **AG Grid column filters** instead of separate Patient ID/TSP/Visit/etc. filter widgets.
-- **Date From / Date To** remain outside the grid because they are database-level filters.
-- AG Grid's own column filter handles `patientid`, `tsp`, `visitno`, `srno`, `approach`, `team`, `reportingyear`, etc.
-- Viewer: view/filter only.
-- Editor: edit existing records.
-- Admin: edit + insert + delete.
-- Pending changes persist when AG Grid filters or date filters change.
-- Pending changes remain even if the record disappears from the current filter.
-- Admin gets **Add Row** and **Delete Selected**.
-- `patientid` and `updated_at` are read-only.
-- Supabase RLS remains the actual security layer.
-- Sync applies all accumulated INSERT/UPDATE/DELETE operations.
-- Discard clears all unsaved changes.
-
-```python
 import streamlit as st
 import pandas as pd
 from datetime import timedelta
