@@ -231,7 +231,7 @@ def reset_filters():
 
 
 # ============================================================
-# FILTER AREA (RESET FILTERS ONLY)
+# FILTER AREA
 # ============================================================
 
 st.subheader("🔎 Controls & Filters")
@@ -305,7 +305,7 @@ st.subheader("📋 Consultation Data")
 if df.empty:
     st.info("No records to display.")
 else:
-    # Native Streamlit Multi-select for column hiding/visibility
+    # Column Display Filter
     all_columns = list(df.columns)
     selected_columns = st.multiselect(
         "👁️ Column Display Filter",
@@ -314,7 +314,6 @@ else:
         key=f"col_filter_{st.session_state.filter_version}"
     )
 
-    # Filter dataframe to selected columns, keeping PRIMARY_KEY for tracking operations
     cols_to_show = list(set(selected_columns + [PRIMARY_KEY]))
     df_display = df[cols_to_show]
 
@@ -322,7 +321,6 @@ else:
 
     gb = GridOptionsBuilder.from_dataframe(df_display)
 
-    # Configure open-source AG Grid column defaults
     gb.configure_default_column(
         sortable=True,
         filter=True,
@@ -333,18 +331,15 @@ else:
         menuTabs=["filterMenuTab", "generalMenuTab"]
     )
 
-    if can_delete:
-        gb.configure_selection(
-            selection_mode="multiple",
-            use_checkbox=True
-        )
-
+    # Configure Primary Key column with Checkbox selection for newer AG Grid releases
     if PRIMARY_KEY in df_display.columns:
         gb.configure_column(
             PRIMARY_KEY,
             editable=False,
             filter="agTextColumnFilter",
-            hide=(PRIMARY_KEY not in selected_columns)  # Keep loaded for data tracking, hide if unselected
+            header_checkbox_selection=can_delete,
+            checkbox_selection=can_delete,
+            hide=(PRIMARY_KEY not in selected_columns)
         )
 
     if "updated_at" in df_display.columns:
@@ -357,8 +352,7 @@ else:
         )
 
     gb.configure_grid_options(
-        rowSelection="multiple" if can_delete else None,
-        suppressRowClickSelection=True,
+        rowSelection="multiple" if can_delete else "single",
         animateRows=False,
         pagination=True,
         paginationPageSize=50,
