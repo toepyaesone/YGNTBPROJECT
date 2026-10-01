@@ -2,9 +2,19 @@ from st_aggrid import (
     AgGrid,
     GridOptionsBuilder,
     GridUpdateMode,
-    DataReturnMode,
-    ColumnsAutoSizeMode
+    DataReturnMode
 )
+grid_response = AgGrid(
+        df_display,
+        gridOptions=grid_options,
+        height=600,
+        width="100%",
+        theme="streamlit",
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        data_return_mode=DataReturnMode.AS_INPUT,
+        allow_unsafe_jscode=False,
+        key=f"consultation_aggrid_{st.session_state.grid_version}"
+    )
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
