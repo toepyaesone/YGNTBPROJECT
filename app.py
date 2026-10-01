@@ -625,33 +625,22 @@ pending_rows = []
 for row_index, changes in edited_rows.items():
 
     try:
-
         row_index = int(row_index)
-
     except Exception:
-
         continue
-
 
     if row_index >= len(df):
         continue
-
 
     original = df.iloc[row_index]
 
     row = {
         "Action": "UPDATE",
-        "Row": row_index,
-        PRIMARY_KEY: original.get(
-            PRIMARY_KEY
-        )
+        PRIMARY_KEY: original.get(PRIMARY_KEY)
     }
 
-
     for column, value in changes.items():
-
         row[column] = value
-
 
     pending_rows.append(row)
 
@@ -660,20 +649,13 @@ for row_index, changes in edited_rows.items():
 # NEW ROWS
 # ------------------------------------------------------------
 
-for row_index, row_data in enumerate(
-    added_rows
-):
+for row_data in added_rows:
 
     row = {
-        "Action": "INSERT",
-        "Row": row_index
+        "Action": "INSERT"
     }
 
-    if isinstance(
-        row_data,
-        dict
-    ):
-
+    if isinstance(row_data, dict):
         row.update(row_data)
 
     pending_rows.append(row)
@@ -686,30 +668,18 @@ for row_index, row_data in enumerate(
 for row_index in deleted_rows:
 
     try:
-
         row_index = int(row_index)
-
     except Exception:
-
         continue
-
 
     if row_index >= len(df):
         continue
 
-
     original = df.iloc[row_index]
 
     pending_rows.append({
-
         "Action": "DELETE",
-
-        "Row": row_index,
-
-        PRIMARY_KEY: original.get(
-            PRIMARY_KEY
-        )
-
+        PRIMARY_KEY: original.get(PRIMARY_KEY)
     })
 
 
@@ -720,13 +690,10 @@ for row_index in deleted_rows:
 if pending_rows:
 
     st.subheader(
-        f"📝 Pending Changes "
-        f"({len(pending_rows)})"
+        f"📝 Pending Changes ({len(pending_rows)})"
     )
 
-    pending_df = pd.DataFrame(
-        pending_rows
-    )
+    pending_df = pd.DataFrame(pending_rows)
 
     st.dataframe(
         pending_df,
@@ -736,9 +703,7 @@ if pending_rows:
 
 else:
 
-    st.caption(
-        "No pending changes."
-    )
+    st.caption("No pending changes.")
 
 
 # ============================================================
